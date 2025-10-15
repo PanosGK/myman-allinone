@@ -4279,7 +4279,8 @@
                             <button class="tm-shop-tab active" data-category="themes">🎨 Themes</button>
                             <button class="tm-shop-tab" data-category="accessories">🎩 Accessories</button>
                             <button class="tm-shop-tab" data-category="consumables">⚡ Consumables</button>
-                            <button class="tm-shop-tab" data-category="customization">🤖 Customization</button>
+                            <!-- The customization tab was missing from the HTML -->
+                            <button class="tm-shop-tab" data-category="customization">🤖 Evolutions</button>
                         </div>
                     </div>
                 </div>
@@ -4294,7 +4295,7 @@
             // Add tab switching logic
             const tabsContainer = overlay.querySelector('.tm-shop-tabs');
             tabsContainer.addEventListener('click', (e) => {
-                if (e.target.matches('.tm-shop-tab')) {
+                if (e.target.matches('.tm-shop-tab') && !e.target.classList.contains('active')) {
                     const category = e.target.dataset.category;
                     // Update tab active state
                     tabsContainer.querySelectorAll('.tm-shop-tab').forEach(tab => tab.classList.remove('active'));
@@ -4621,11 +4622,12 @@
             const categories = {
                 themes: [],
                 accessories: [],
-                consumables: []
+                consumables: [],
+                // Re-adding the customization category definition
+                customization: []
             };
 
             // Sort all items into categories
-            // The 'customization' category was accidentally removed. I'm adding it back.
             Object.keys(UI_THEMES).forEach(id => categories.themes.push({ id, ...UI_THEMES[id], type: 'theme' }));
             categories.accessories.push(
                 { id: 'top_hat', name: 'Top Hat', icon: '🎩', cost: 250, type: 'accessory' },
@@ -4642,6 +4644,22 @@
                 { id: 'double_coins_voucher', name: 'Double Coins Voucher', icon: '💰', cost: 200, type: 'consumable' },
                 { id: 'happiness_snack', name: 'Happiness Snack', icon: '💖', cost: 50, type: 'consumable' },
                 { id: 'confetti_bomb', name: 'Confetti Bomb', icon: '🎉', cost: 25, type: 'consumable' }
+            );
+
+            // Add mascot parts to the customization category
+            categories.customization.push(
+                { id: 'tm-mascot-evo1', name: 'Evo-1 Chassis', icon: '🤖', cost: 1000, type: 'customization' },
+                { id: 'tm-mascot-evo2', name: 'Evo-2 Chassis', icon: '🤖', cost: 2500, type: 'customization' },
+                { id: 'tm-mascot-evo3', name: 'Evo-3 Chassis', icon: '🤖', cost: 5000, type: 'customization' },
+                { id: 'tm-mascot-evo4', name: 'Evo-4 Chassis', icon: '🤖', cost: 15000, type: 'customization' }
+            );
+
+            // Re-adding the population of the customization category
+            categories.customization.push(
+                { id: 'tm-mascot-evo1', name: 'Evo-1 Chassis', icon: '🤖', cost: 1000, type: 'customization' },
+                { id: 'tm-mascot-evo2', name: 'Evo-2 Chassis', icon: '🤖', cost: 2500, type: 'customization' },
+                { id: 'tm-mascot-evo3', name: 'Evo-3 Chassis', icon: '🤖', cost: 5000, type: 'customization' },
+                { id: 'tm-mascot-evo4', name: 'Evo-4 Chassis', icon: '🤖', cost: 15000, type: 'customization' }
             );
 
             const purchasedItems = JSON.parse(GM_getValue(STORAGE_KEYS.PURCHASED_ITEMS, '[]'));
@@ -5094,7 +5112,12 @@
 
         // Close on outside click
         setTimeout(() => {
-            document.addEventListener('click', (e) => { if (!panel.contains(e.target) && e.target.closest('#tm-notification-bell-btn') === null) panel.remove(); }, { once: true });
+            document.addEventListener('click', function closePanel(e) {
+                if (panel && !panel.contains(e.target) && e.target.closest('#tm-notification-bell-btn') === null) {
+                    panel.remove();
+                    document.removeEventListener('click', closePanel);
+                }
+            });
         }, 0);
     }
     // ===================================================================
@@ -7315,7 +7338,12 @@
             e.stopPropagation();
         });
         // Close on outside click, but don't resume roaming immediately.
-        document.body.addEventListener('click', () => { if (interactionPanel.style.display === 'flex') { container.click(); } });
+        document.body.addEventListener('click', (e) => {
+            // Only trigger the close if the click is outside the panel and the panel is visible
+            if (interactionPanel.style.display === 'flex' && !interactionPanel.contains(e.target) && !container.contains(e.target)) {
+                container.click();
+            }
+        });
 
         container.querySelector('#tm-pet-feed-btn').addEventListener('click', () => {
             if (petStats.hunger < 100) {
