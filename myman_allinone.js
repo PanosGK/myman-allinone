@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @updateURL    https://raw.githubusercontent.com/PanosGK/myman-allinone/main/myman_allinone.js
 // @downloadURL  https://raw.githubusercontent.com/PanosGK/myman-allinone/main/myman_allinone.js
-// @version      114
+// @version      115
 // @description  An all-in-one suite for mymanager.gr, combining Advanced Search, Auto-Refresh, Quick Navigation, a Dashboard, and more.
 // @description  Συνδυάζει λειτουργίες Αναζήτησης, Αυτόματης Ανανέωσης και Γρήγορης Πλοήγησης για το mymanager.gr.
 // @author       Gkorogias - Gemini AI - Chat GPT
@@ -5289,28 +5289,6 @@
         }, 500);
         editor.addEventListener('input', debouncedSaveText);
 
-        // --- Cursor Position Saver ---
-        function saveCursorPosition(context) {
-            const selection = window.getSelection();
-            if (selection.rangeCount > 0) {
-                const range = selection.getRangeAt(0);
-                const preSelectionRange = range.cloneRange();
-                preSelectionRange.selectNodeContents(context);
-                preSelectionRange.setEnd(range.startContainer, range.startOffset);
-                return preSelectionRange.toString().length;
-            }
-            return 0;
-        }
-
-        function restoreCursorPosition(context, position) {
-            const selection = window.getSelection();
-            const range = document.createRange();
-            range.setStart(context.firstChild || context, position > 0 ? 1 : 0); // Adjust based on content
-            range.collapse(true);
-            selection.removeAllRanges();
-            selection.addRange(range);
-        }
-
         // --- Markdown Formatting ---
         const applyMarkdownFormatting = debounce(() => {
             // This is a simple implementation. More complex scenarios might need a proper parser.
@@ -5551,38 +5529,44 @@
         }, 200));
 
         // --- Highlighting Logic for Search ---
-        // This function now uses a more robust method that preserves the cursor.
         function highlightSearchTermsInEditor() {
             const query = searchInput.value.trim();
-            const content = editor.innerHTML;
+            // First, remove any existing highlights
+            editor.querySelectorAll('mark.tm-search-highlight').forEach(mark => {
+                mark.outerHTML = mark.innerHTML; // Unwrap the text
+            });
+            // Normalize the editor's HTML to merge adjacent text nodes
+            editor.normalize();
 
-            // 1. Remove old highlights by replacing <mark>...</mark> with its content.
-            // This is safer than manipulating the live DOM tree repeatedly.
-            let unhighlightedContent = content.replace(/<mark class="tm-search-highlight">(.*?)<\/mark>/gi, '$1');
+            if (!query) return; // No query, no highlighting
 
-            // 2. Add new highlights if there's a query.
-            let highlightedContent = unhighlightedContent;
-            if (query) {
-                const regex = new RegExp(`(${query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
-                // Important: Only replace text that is not inside an HTML tag.
-                // This is a simplified but effective way to do it for this use case.
-                highlightedContent = unhighlightedContent.replace(/>([^<]+)</g, (match, textContent) => {
-                    return '>' + textContent.replace(regex, '<mark class="tm-search-highlight">$1</mark>') + '<';
-                });
+            const regex = new RegExp(`(${query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
+            const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+            let node;
+            const nodesToReplace = [];
+
+            while (node = walker.nextNode()) {
+                if (node.parentElement.tagName === 'MARK') continue; // Don't search within highlights
+                if (regex.test(node.nodeValue)) {
+                    nodesToReplace.push(node);
+                }
             }
 
-            // 3. Only update the editor's HTML if it has actually changed.
-            if (editor.innerHTML !== highlightedContent) {
-                editor.innerHTML = highlightedContent;
-            }
+            nodesToReplace.forEach(textNode => {
+                const newHTML = textNode.nodeValue.replace(regex, '<mark class="tm-search-highlight">$1</mark>');
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = newHTML;
+                const fragment = document.createDocumentFragment();
+                while (tempDiv.firstChild) {
+                    fragment.appendChild(tempDiv.firstChild);
+                }
+                textNode.parentNode.replaceChild(fragment, textNode);
+            });
         }
 
         // --- Interactive Checklists Logic ---
         function renderCheckboxesInEditor() {
-            // This function is now disabled as it was a primary cause of the cursor jumping.
-            // The toolbar buttons provide a more stable way to manage content.
-            return;
-
+            // Use a more robust method that doesn't rely on simple string replacement
             const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
             let node;
             while (node = walker.nextNode()) {
@@ -5610,17 +5594,6 @@
                 }
             }
         }
-
-        // Clear current note's text
-        clearBtn.addEventListener('click', () => {
-            if (editor.innerHTML && confirm('Είστε σίγουροι ότι θέλετε να καθαρίσετε την τρέχουσα σημείωση;')) {
-                editor.innerHTML = '';
-                // Manually trigger the save function after clearing
-                const now = new Date().toISOString();
-                updateActiveNote({ content: '', lastEdited: now });
-                updateLastEditedDisplay(now);
-            }
-        });
 
         editor.addEventListener('input', debounce(renderCheckboxesInEditor, 300));
 
