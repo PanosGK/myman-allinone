@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @updateURL    https://raw.githubusercontent.com/PanosGK/myman-allinone/main/myman_allinone.js
 // @downloadURL  https://raw.githubusercontent.com/PanosGK/myman-allinone/main/myman_allinone.js
-// @version      111
+// @version      114
 // @description  An all-in-one suite for mymanager.gr, combining Advanced Search, Auto-Refresh, Quick Navigation, a Dashboard, and more.
 // @description  Συνδυάζει λειτουργίες Αναζήτησης, Αυτόματης Ανανέωσης και Γρήγορης Πλοήγησης για το mymanager.gr.
 // @author       Gkorogias - Gemini AI - Chat GPT
@@ -2746,6 +2746,15 @@
                 grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
                 gap: 15px;
             }
+            .tm-shop-tabs { display: flex; gap: 5px; margin-bottom: 15px; border-bottom: 1px solid #ccc; }
+            .tm-shop-tab { padding: 8px 15px; cursor: pointer; border: 1px solid #ccc; border-bottom: none; border-radius: 5px 5px 0 0; background: #f1f1f1; }
+            .tm-shop-tab.active { background: #fff; border-bottom: 1px solid #fff; margin-bottom: -1px; font-weight: bold; }
+            .tm-shop-category-content {
+                display: none; /* Hide all categories by default */
+            }
+            .tm-shop-category-content.active {
+                display: block; /* Show only the active one */
+            }
             .tm-shop-item {
                 border: 1px solid var(--tm-shop-item-border);
                 border-radius: 8px;
@@ -3960,6 +3969,7 @@
             };
 
             // --- Save General UI Settings ---
+            saveCheckbox('tm-setting-debug-enabled', 'debugEnabled');
             saveCheckbox('tm-setting-login-page-enabled', 'customLoginPageEnabled');
             saveCheckbox('tm-setting-dashboard-enabled', 'dashboardWidgetEnabled');
             saveCheckbox('tm-setting-scroll-top-enabled', 'scrollToTopEnabled');
@@ -4099,6 +4109,13 @@
                         <div class="tm-setting-label"><label for="tm-setting-confetti-enabled">Ενεργοποίηση Εφέ Confetti</label></div>
                         <div class="tm-setting-control"><input type="checkbox" id="tm-setting-confetti-enabled"></div>
                     </div>
+                    <div class="tm-setting-row" style="background: #fffbe6; padding-top: 10px; padding-bottom: 10px; border: 1px solid #ffe58f; border-radius: 5px;">
+                        <div class="tm-setting-label">
+                            <label for="tm-setting-debug-enabled">Enable Debug Mode</label>
+                            <p class="tm-setting-description">Makes shop items free and adds debug controls. Requires page reload.</p>
+                        </div>
+                        <div class="tm-setting-control"><input type="checkbox" id="tm-setting-debug-enabled"></div>
+                    </div>
                 </div>
             `;
         }
@@ -4130,13 +4147,17 @@
             overlay.className = 'tm-modal-overlay';
             overlay.id = 'tm-shop-modal';
             overlay.innerHTML = `
-                <div class="tm-modal-content" style="max-width: 700px; height: auto;">
+                <div class="tm-modal-content" style="max-width: 700px;">
                     <div class="tm-modal-header">
                         <h2 class="tm-modal-title">🪙 Shop</h2>
                         <button class="tm-modal-close">&times;</button>
                     </div>
-                    <div id="tm-shop-content-container" style="overflow-y: auto; padding: 10px;">
-                        ${getShopHTML()}
+                    <div id="tm-shop-content-container" style="flex-grow: 1; overflow-y: auto; padding: 10px;">
+                        <div class="tm-shop-tabs">
+                            <button class="tm-shop-tab active" data-category="themes">🎨 Themes</button>
+                            <button class="tm-shop-tab" data-category="accessories">🎩 Accessories</button>
+                            <button class="tm-shop-tab" data-category="consumables">⚡ Consumables</button>
+                        </div>
                     </div>
                 </div>
             `;
@@ -4146,6 +4167,20 @@
             overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 
             populateShop(); // Populate the content
+
+            // Add tab switching logic
+            const tabsContainer = overlay.querySelector('.tm-shop-tabs');
+            tabsContainer.addEventListener('click', (e) => {
+                if (e.target.matches('.tm-shop-tab')) {
+                    const category = e.target.dataset.category;
+                    // Update tab active state
+                    tabsContainer.querySelectorAll('.tm-shop-tab').forEach(tab => tab.classList.remove('active'));
+                    e.target.classList.add('active');
+                    // Update content active state
+                    overlay.querySelectorAll('.tm-shop-category-content').forEach(content => content.classList.remove('active'));
+                    overlay.querySelector(`#tm-shop-category-${category}`).classList.add('active');
+                }
+            });
 
             // --- Shop Logic ---
             overlay.querySelector('#tm-shop-container')?.addEventListener('click', (e) => {
@@ -4474,26 +4509,33 @@
         }
 
         function populateShop() {
-            const shopContainer = document.getElementById('tm-shop-container');
-            if (!shopContainer) return;
+            const contentContainer = document.getElementById('tm-shop-content-container');
+            if (!contentContainer) return;
 
-            const shopItems = [
-                 // Accessories
+            // Define categories
+            const categories = {
+                themes: [],
+                accessories: [],
+                consumables: []
+            };
+
+            // Sort all items into categories
+            Object.keys(UI_THEMES).forEach(id => categories.themes.push({ id, ...UI_THEMES[id], type: 'theme' }));
+            categories.accessories.push(
                 { id: 'top_hat', name: 'Top Hat', icon: '🎩', cost: 250, type: 'accessory' },
                 { id: 'cool_shades', name: 'Cool Shades', icon: '😎', cost: 350, type: 'accessory' },
                 { id: 'rainy_day_umbrella', name: 'Rainy Day Umbrella', icon: '☂️', cost: 350, type: 'accessory' },
                 { id: 'bookworm_kit', name: 'Bookworm Kit', icon: '📚', cost: 300, type: 'accessory' },
                 { id: 'stunt_bike', name: 'Stunt Bike', icon: '🚲', cost: 750, type: 'accessory' },
-                { id: 'juggling_balls', name: 'Juggling Balls', icon: '🤹', cost: 400, type: 'accessory' },
-                // Consumables
+                { id: 'juggling_balls', name: 'Juggling Balls', icon: '🤹', cost: 400, type: 'accessory' }
+            );
+            categories.consumables.push(
                 { id: 'reroll_token', name: 'Bounty Reroll Token', icon: '🔄', cost: 100, type: 'consumable' },
-                { id: 'energized_drink', name: 'Energized Drink', icon: '⚡️', cost: 150, type: 'consumable', description: 'Grants +10% XP for 15 minutes.' },
-                { id: 'double_coins_voucher', name: 'Double Coins Voucher', icon: '💰', cost: 200, type: 'consumable', description: 'Doubles all Fixer-Coin earnings for 10 minutes.' },
-                { id: 'happiness_snack', name: 'Happiness Snack', icon: '💖', cost: 50, type: 'consumable', description: 'Instantly maxes out mascot happiness.' },
-                { id: 'confetti_bomb', name: 'Confetti Bomb', icon: '🎉', cost: 25, type: 'consumable', description: 'Triggers a confetti explosion on demand.' },
-            ].concat(
-                Object.keys(UI_THEMES).map(id => ({ id, ...UI_THEMES[id], type: 'theme' }))
-            ); // Themes
+                { id: 'energized_drink', name: 'Energized Drink', icon: '⚡️', cost: 150, type: 'consumable' },
+                { id: 'double_coins_voucher', name: 'Double Coins Voucher', icon: '💰', cost: 200, type: 'consumable' },
+                { id: 'happiness_snack', name: 'Happiness Snack', icon: '💖', cost: 50, type: 'consumable' },
+                { id: 'confetti_bomb', name: 'Confetti Bomb', icon: '🎉', cost: 25, type: 'consumable' }
+            );
 
             const purchasedItems = JSON.parse(GM_getValue(STORAGE_KEYS.PURCHASED_ITEMS, '[]'));
             const equippedItem = GM_getValue(STORAGE_KEYS.EQUIPPED_ITEM, null);
@@ -4501,33 +4543,44 @@
 
             shopContainer.innerHTML = ''; // Clear previous items
 
-            shopItems.forEach(item => {
-                const isOwned = purchasedItems.includes(item.id);
-                const isEquipped = (item.type === 'accessory' && equippedItem === item.id) || (item.type === 'theme' && config.equippedTheme === item.id);
+            // Create content for each category
+            for (const category in categories) {
+                const categoryContent = document.createElement('div');
+                categoryContent.id = `tm-shop-category-${category}`;
+                categoryContent.className = 'tm-shop-category-content';
+                if (category === 'themes') categoryContent.classList.add('active'); // Make first tab active
 
-                const itemDiv = document.createElement('div');
-                itemDiv.className = `tm-shop-item ${isOwned || (config.debugEnabled && item.type !== 'consumable') ? 'owned' : ''}`;
-                itemDiv.innerHTML = `
-                    <div class="tm-shop-item-icon">${item.icon}</div>
-                    <div class="tm-shop-item-name">${item.name}</div>
-                    <div class="tm-shop-item-cost">${(isOwned && item.type !== 'consumable') ? 'Αγορασμένο' : (config.debugEnabled ? '🪙 0 (Free)' : `🪙 ${item.cost}`)}</div>
-                    <button class="tm-shop-item-btn" data-item-id="${item.id}" data-item-cost="${item.cost}"></button>
-                `; // Removed data-item-type as it's on the item object
+                const shopGrid = document.createElement('div');
+                shopGrid.id = 'tm-shop-container'; // Keep the ID for the event listener
 
-                const button = itemDiv.querySelector('.tm-shop-item-btn');
-                if (isOwned || (config.debugEnabled && item.type !== 'consumable')) {
-                    button.textContent = isEquipped ? 'Εξοπλισμένο' : 'Εξόπλισε';
-                    button.className += isEquipped ? ' equipped' : ' equip';
-                    if (isEquipped) button.disabled = true;
-                } else {
-                    button.textContent = config.debugEnabled ? 'Get (Free)' : 'Αγόρασε';
-                    button.className += ' buy';
-                    if (!config.debugEnabled && currentCoins < item.cost) button.disabled = true;
-                }
+                categories[category].forEach(item => {
+                    const isOwned = purchasedItems.includes(item.id);
+                    const isEquipped = (item.type === 'accessory' && equippedItem === item.id) || (item.type === 'theme' && config.equippedTheme === item.id);
 
-                itemDiv.querySelector('.tm-shop-item-btn').dataset.itemType = item.type;
-                shopContainer.appendChild(itemDiv);
-            });
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = `tm-shop-item ${isOwned || (config.debugEnabled && item.type !== 'consumable') ? 'owned' : ''}`;
+                    itemDiv.innerHTML = `
+                        <div class="tm-shop-item-icon">${item.icon}</div>
+                        <div class="tm-shop-item-name">${item.name}</div>
+                        <div class="tm-shop-item-cost">${(isOwned && item.type !== 'consumable') ? 'Αγορασμένο' : (config.debugEnabled ? '🪙 0 (Free)' : `🪙 ${item.cost}`)}</div>
+                        <button class="tm-shop-item-btn" data-item-id="${item.id}" data-item-cost="${item.cost}" data-item-type="${item.type}"></button>
+                    `;
+
+                    const button = itemDiv.querySelector('.tm-shop-item-btn');
+                    if (isOwned || (config.debugEnabled && item.type !== 'consumable')) {
+                        button.textContent = isEquipped ? 'Εξοπλισμένο' : 'Εξόπλισε';
+                        button.className += isEquipped ? ' equipped' : ' equip';
+                        if (isEquipped) button.disabled = true;
+                    } else {
+                        button.textContent = config.debugEnabled ? 'Get (Free)' : 'Αγόρασε';
+                        button.className += ' buy';
+                        if (!config.debugEnabled && currentCoins < item.cost) button.disabled = true;
+                    }
+                    shopGrid.appendChild(itemDiv);
+                });
+                categoryContent.appendChild(shopGrid);
+                contentContainer.appendChild(categoryContent);
+            }
         }
 
         function handleShopPurchase(button) {
@@ -4598,7 +4651,6 @@
                                 <li><a href="#sec-levelup">Level-Up System</a></li>
                                 <li><a href="#sec-mascot">Mascot</a></li>
                                 <li><a href="#sec-talents">Talents</a></li>
-                                <li><a href="#sec-shop">🪙 Shop</a></li>
                                 <li style="display: none;" data-debug-only="true"><a href="#sec-debug">🔧 Debug</a></li>
                                 <li><a href="#sec-data">Data</a></li>
                             </ul>
@@ -4652,12 +4704,6 @@
                         activate(id);
                     });
                 });
-                // Special handling for shop
-                if (shopLink) {
-                    shopLink.addEventListener('click', (ev) => {
-                        ev.preventDefault(); showShopModal();
-                    });
-                }
                 // Special handling for debug tab
                 if (debugTab) {
                     debugTab.style.display = config.debugEnabled ? 'block' : 'none';
@@ -4678,6 +4724,7 @@
                 const checkbox = document.getElementById(id);
                 if (checkbox) checkbox.checked = config[key];
             };
+            populateCheckbox('tm-setting-debug-enabled', 'debugEnabled');
             populateCheckbox('tm-setting-login-page-enabled', 'customLoginPageEnabled');
             populateCheckbox('tm-setting-dashboard-enabled', 'dashboardWidgetEnabled');
             populateCheckbox('tm-setting-scroll-top-enabled', 'scrollToTopEnabled');
