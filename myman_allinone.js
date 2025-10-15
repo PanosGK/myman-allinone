@@ -723,7 +723,7 @@
         overlay.id = 'tm-level-up-overlay';
 
         let evolutionMessage = '';
-        const evolutionMilestones = [10, 25];
+        const evolutionMilestones = [10, 25, 50, 100];
         if (evolutionMilestones.some(milestone => oldLevel < milestone && newLevel >= milestone)) {
             evolutionMessage = '<div class="tm-level-up-evolution">Your Mascot has Evolved!</div>';
             // Update the mascot's appearance in real-time
@@ -1617,6 +1617,32 @@
                 background-color: #030d03;
                 text-shadow: 0 0 4px #0f0;
             }
+            /* Full hacker theme for the search modal */
+            .tm-hacker-theme-enabled .tm-modal-content {
+                background: #050505;
+                color: #0f0;
+                border: 1px solid #0f0;
+                box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+            }
+            .tm-hacker-theme-enabled .tm-modal-header { border-bottom-color: #0f0; }
+            .tm-hacker-theme-enabled .tm-modal-title { color: #0f0; }
+            .tm-hacker-theme-enabled .tm-modal-close { color: #0f0; }
+            .tm-hacker-theme-enabled #tm-search-submit { background-color: #009900; border-color: #0f0; }
+            .tm-hacker-theme-enabled #tm-search-submit:hover { background-color: #00cc00; }
+            .tm-hacker-theme-enabled #tm-search-favorite-btn { border-color: #0f0; color: #0f0; }
+            .tm-hacker-theme-enabled #tm-search-favorite-btn.favorited { color: #ffff00; }
+            .tm-hacker-theme-enabled #tm-search-history-favorites-container { border-top-color: #0f0; }
+            .tm-hacker-theme-enabled .tm-search-list-section h4 { color: #0f0; border-bottom-color: #0f0; }
+            .tm-hacker-theme-enabled .tm-search-list-item a { color: #3f3; }
+            .tm-hacker-theme-enabled .tm-search-list-action-btn { color: #0f0; }
+            .tm-hacker-theme-enabled .tm-search-list-action-btn:hover { color: #ff0000; }
+            .tm-hacker-theme-enabled #tm-status-message { color: #0f0; }
+            .tm-hacker-theme-enabled .tm-result-item { border-color: #0f0; background: #080808; }
+            .tm-hacker-theme-enabled .tm-result-header { background: #111; }
+            .tm-hacker-theme-enabled .tm-result-table td { border-color: #0f0; }
+            .tm-hacker-theme-enabled .tm-result-highlight { background-color: #00ff00; color: #000; }
+            .tm-hacker-theme-enabled .tm-goto-btn, .tm-hacker-theme-enabled .tm-print-btn { background-color: #009900; }
+            .tm-hacker-theme-enabled .tm-goto-btn:hover, .tm-hacker-theme-enabled .tm-print-btn:hover { background-color: #00cc00; }
 
             /* Search History & Favorites */
             #tm-search-input { border-top-right-radius: 0; border-bottom-right-radius: 0; }
@@ -2941,6 +2967,11 @@
                 font-size: 16px;
                 flex-grow: 1;
             }
+            .tm-title-mascot-preview {
+                flex-shrink: 0;
+                width: 60px;
+                margin-right: 15px;
+            }
 
 
 
@@ -3898,15 +3929,21 @@
         const base = document.getElementById('tm-mascot-base');
         const evo1 = document.getElementById('tm-mascot-evo1');
         const evo2 = document.getElementById('tm-mascot-evo2');
+        const evo3 = document.getElementById('tm-mascot-evo3');
+        const evo4 = document.getElementById('tm-mascot-evo4');
 
-        if (!base || !evo1 || !evo2) return;
+        if (!base || !evo1 || !evo2 || !evo3 || !evo4) return;
 
         // Hide all forms first
         base.style.display = 'none';
         evo1.style.display = 'none';
         evo2.style.display = 'none';
+        evo3.style.display = 'none';
+        evo4.style.display = 'none';
 
-        if (level >= 25) evo2.style.display = 'block';
+        if (level >= 100) evo4.style.display = 'block';
+        else if (level >= 50) evo3.style.display = 'block';
+        else if (level >= 25) evo2.style.display = 'block';
         else if (level >= 10) evo1.style.display = 'block';
         else base.style.display = 'block';
     }
@@ -4074,17 +4111,17 @@
 
         // --- Settings Modal HTML Generators (for better readability) ---
         function getGeneralUISettingsHTML() {
+            // Merged General and Login settings
             return `
                 <div class="tm-settings-section">
-                    <h3>Login Page</h3>
+                    <h3>Γενικές Ρυθμίσεις</h3>
                     <div class="tm-setting-row">
                         <div class="tm-setting-label">
-                            <label for="tm-setting-login-page-enabled">Enable Custom Login Page</label>
-                            <p class="tm-setting-description">Replaces the default login page with a minimalist, quick-login version.</p>
+                            <label for="tm-setting-login-page-enabled">Προσαρμοσμένη Σελίδα Σύνδεσης</label>
+                            <p class="tm-setting-description">Αντικαθιστά την προεπιλεγμένη σελίδα σύνδεσης με μια μινιμαλιστική έκδοση.</p>
                         </div>
                         <div class="tm-setting-control"><input type="checkbox" id="tm-setting-login-page-enabled"></div>
                     </div>
-                    <h3>Γενικές Ρυθμίσεις UI</h3>
                     <div class="tm-setting-row">
                         <div class="tm-setting-label"><label for="tm-setting-dashboard-enabled">Εμφάνιση Widget "Σήμερα"</label></div>
                         <div class="tm-setting-control"><input type="checkbox" id="tm-setting-dashboard-enabled"></div>
@@ -4093,26 +4130,10 @@
                         <div class="tm-setting-label"><label for="tm-setting-scroll-top-enabled">Εμφάνιση Κουμπιού "Scroll to Top"</label></div>
                         <div class="tm-setting-control"><input type="checkbox" id="tm-setting-scroll-top-enabled"></div>
                     </div>
-                    <div class="tm-setting-row">
-                        <div class="tm-setting-label"><label for="tm-setting-tech-stats-enabled">Ενεργοποίηση Στατιστικών Τεχνικών</label></div>
-                        <div class="tm-setting-control"><input type="checkbox" id="tm-setting-tech-stats-enabled"></div>
-                    </div>
-                    <div class="tm-setting-row">
-                        <div class="tm-setting-label"><label for="tm-setting-customer-history-enabled">Ενεργοποίηση Ιστορικού Πελάτη</label></div>
-                        <div class="tm-setting-control"><input type="checkbox" id="tm-setting-customer-history-enabled"></div>
-                    </div>
-                    <div class="tm-setting-row">
-                        <div class="tm-setting-label"><label for="tm-setting-automated-parts-search-enabled">Αυτόματη Αναζήτηση Ανταλλακτικών</label><p class="tm-setting-description">Εμφανίζει μια sidebar με προτεινόμενα ανταλλακτικά στις σελίδες επισκευών.</p></div>
-                        <div class="tm-setting-control"><input type="checkbox" id="tm-setting-automated-parts-search-enabled"></div>
-                    </div>
-                    <div class="tm-setting-row">
-                        <div class="tm-setting-label"><label for="tm-setting-confetti-enabled">Ενεργοποίηση Εφέ Confetti</label></div>
-                        <div class="tm-setting-control"><input type="checkbox" id="tm-setting-confetti-enabled"></div>
-                    </div>
                     <div class="tm-setting-row" style="background: #fffbe6; padding-top: 10px; padding-bottom: 10px; border: 1px solid #ffe58f; border-radius: 5px;">
                         <div class="tm-setting-label">
-                            <label for="tm-setting-debug-enabled">Enable Debug Mode</label>
-                            <p class="tm-setting-description">Makes shop items free and adds debug controls. Requires page reload.</p>
+                            <label for="tm-setting-debug-enabled">Ενεργοποίηση Debug Mode</label>
+                            <p class="tm-setting-description">Ενεργοποιεί επιλογές για testing και δωρεάν αντικείμενα στο κατάστημα.</p>
                         </div>
                         <div class="tm-setting-control"><input type="checkbox" id="tm-setting-debug-enabled"></div>
                     </div>
@@ -4123,17 +4144,17 @@
         function getDebugSettingsHTML() {
             return `
                 <div class="tm-settings-section">
-                    <h3>🔧 Debug Controls</h3>
+                    <h3>🔧 Εργαλεία Debug</h3>
                     <div class="tm-setting-row">
-                        <div class="tm-setting-label"><label for="tm-debug-level-input">Set Level</label></div>
+                        <div class="tm-setting-label"><label for="tm-debug-level-input">Ορισμός Level</label></div>
                         <div class="tm-setting-control"><input type="number" id="tm-debug-level-input" min="1" value="${GM_getValue(STORAGE_KEYS.USER_LEVEL, 1)}"><button id="tm-debug-set-level-btn">Set</button></div>
                     </div>
                     <div class="tm-setting-row">
-                        <div class="tm-setting-label"><label for="tm-debug-xp-input">Add XP</label></div>
+                        <div class="tm-setting-label"><label for="tm-debug-xp-input">Προσθήκη XP</label></div>
                         <div class="tm-setting-control"><input type="number" id="tm-debug-xp-input" value="100"><button id="tm-debug-add-xp-btn">Add</button></div>
                     </div>
                     <div class="tm-setting-row">
-                        <div class="tm-setting-label"><label for="tm-debug-coins-input">Add Coins</label></div>
+                        <div class="tm-setting-label"><label for="tm-debug-coins-input">Προσθήκη Coins</label></div>
                         <div class="tm-setting-control"><input type="number" id="tm-debug-coins-input" value="1000"><button id="tm-debug-add-coins-btn">Add</button></div>
                     </div>
                 </div>
@@ -4232,7 +4253,7 @@
         function getSearchSettingsHTML() {
             return `
                 <div class="tm-settings-section">
-                    <h3>Ρυθμίσεις Αναζήτησης</h3>
+                    <h3>Προηγμένη Αναζήτηση</h3>
                     <div class="tm-setting-row">
                         <div class="tm-setting-label"><label for="tm-setting-search-enabled">Ενεργοποίηση Προηγμένης Αναζήτησης</label></div>
                         <div class="tm-setting-control"><input type="checkbox" id="tm-setting-search-enabled"></div>
@@ -4247,6 +4268,21 @@
                     <div class="tm-setting-row">
                         <div class="tm-setting-label"><label for="tm-setting-search-history-max">Μέγεθος Ιστορικού Αναζητήσεων</label></div>
                         <div class="tm-setting-control"><input type="number" id="tm-setting-search-history-max" min="0" max="50"></div>
+                    </div>
+                </div>
+                <div class="tm-settings-section">
+                    <h3>Γρήγορη Αναζήτηση & Εργαλεία</h3>
+                     <div class="tm-setting-row">
+                        <div class="tm-setting-label"><label for="tm-setting-quick-search-enabled">Ενεργοποίηση Κουμπιών Γρήγορης Αναζήτησης</label></div>
+                        <div class="tm-setting-control"><input type="checkbox" id="tm-setting-quick-search-enabled"></div>
+                    </div>
+                    <div class="tm-setting-row">
+                        <div class="tm-setting-label"><label for="tm-setting-tech-stats-enabled">Ενεργοποίηση Στατιστικών Τεχνικών</label></div>
+                        <div class="tm-setting-control"><input type="checkbox" id="tm-setting-tech-stats-enabled"></div>
+                    </div>
+                    <div class="tm-setting-row">
+                        <div class="tm-setting-label"><label for="tm-setting-customer-history-enabled">Ενεργοποίηση Ιστορικού Πελάτη</label></div>
+                        <div class="tm-setting-control"><input type="checkbox" id="tm-setting-customer-history-enabled"></div>
                     </div>
                 </div>`;
         }
@@ -4301,19 +4337,6 @@
             `;
         }
 
-        function getQuickSearchSettingsHTML() {
-            return `
-                <div class="tm-settings-section">
-                    <h3>Ρυθμίσεις Γρήγορης Αναζήτησης</h3>
-                     <div class="tm-setting-row">
-                        <div class="tm-setting-label"><label for="tm-setting-quick-search-enabled">Ενεργοποίηση Κουμπιών Γρήγορης Αναζήτησης</label></div>
-                        <div class="tm-setting-control"><input type="checkbox" id="tm-setting-quick-search-enabled"></div>
-                    </div>
-                </div>
-                ${getQuickSearchEditorHTML()}
-            `;
-        }
-
         function getScratchpadTemplatesEditorHTML() {
             return `
                 <div class="tm-settings-section">
@@ -4341,10 +4364,14 @@
         function getLevelUpSettingsHTML() {
             return `
                 <div class="tm-settings-section">
-                    <h3>Σύστημα Level-Up</h3>
+                    <h3>Gamification</h3>
                     <div class="tm-setting-row">
                         <div class="tm-setting-label"><label for="tm-setting-levelup-enabled">Ενεργοποίηση Συστήματος Level-Up</label><p class="tm-setting-description">Κερδίστε XP και ανεβείτε level ολοκληρώνοντας εργασίες.</p></div>
                         <div class="tm-setting-control"><input type="checkbox" id="tm-setting-levelup-enabled"></div>
+                    </div>
+                    <div class="tm-setting-row">
+                        <div class="tm-setting-label"><label for="tm-setting-confetti-enabled">Ενεργοποίηση Εφέ Confetti</label></div>
+                        <div class="tm-setting-control"><input type="checkbox" id="tm-setting-confetti-enabled"></div>
                     </div>
                 </div>`;
         }
@@ -4352,15 +4379,15 @@
         function getMascotSettingsHTML() {
             return `
                 <div class="tm-settings-section">
-                    <h3>Mascot</h3>
+                    <h3>🤖 Mascot</h3>
                     <div class="tm-setting-row">
                         <div class="tm-setting-label"><label for="tm-setting-mascot-enabled">Ενεργοποίηση Mascot</label><p class="tm-setting-description">Εμφανίζει έναν διαδραστικό βοηθό στην οθόνη.</p></div>
                         <div class="tm-setting-control"><input type="checkbox" id="tm-setting-mascot-enabled"></div>
                     </div>
                 <div class="tm-setting-row">
                     <div class="tm-setting-label">
-                        <label for="tm-setting-weather-location">Weather Location</label>
-                        <p class="tm-setting-description">Set the location for the mascot's weather reaction (e.g., "London, UK").</p>
+                        <label for="tm-setting-weather-location">Τοποθεσία Καιρού</label>
+                        <p class="tm-setting-description">Ορίστε την τοποθεσία για την αντίδραση του mascot στον καιρό (π.χ., "Athens, GR").</p>
                     </div>
                     <div class="tm-setting-control">
                         <input type="text" id="tm-setting-weather-location" style="width: 150px; text-align: left; padding: 8px;">
@@ -4368,8 +4395,8 @@
                 </div>
                 <div class="tm-setting-row">
                     <div class="tm-setting-label">
-                        <label for="tm-setting-mascot-speed">Roaming Speed</label>
-                        <p class="tm-setting-description">Set the mascot's movement speed in pixels per second.</p>
+                        <label for="tm-setting-mascot-speed">Ταχύτητα Περιπλάνησης</label>
+                        <p class="tm-setting-description">Ορίστε την ταχύτητα κίνησης του mascot (pixels ανά δευτερόλεπτο).</p>
                     </div>
                     <div class="tm-setting-control">
                         <input type="number" id="tm-setting-mascot-speed" min="25" max="500" step="25">
@@ -4378,17 +4405,6 @@
                 </div>`;
         }
 
-        function getShopHTML() {
-            return `
-                <div class="tm-settings-section">
-                    <h3>Κατάστημα 🪙</h3>
-                    <p class="tm-setting-description">Χρησιμοποιήστε τα Fixer-Coins που κερδίζετε για να ξεκλειδώσετε καλλυντικά αντικείμενα για τη Mascot σας!</p>
-                    <div id="tm-shop-container">
-                        <!-- Shop items will be injected here by JS -->
-                    </div>
-                </div>
-            `;
-        }
         function getTalentsHTML() {
             const talentPoints = GM_getValue(STORAGE_KEYS.USER_TALENT_POINTS, 0);
             const unlockedTalents = JSON.parse(GM_getValue(STORAGE_KEYS.UNLOCKED_TALENTS, '[]'));
@@ -4415,9 +4431,9 @@
 
             return `
                 <div class="tm-settings-section">
-                    <h3>🌟 Mascot Talents</h3>
-                    <div class="tm-talent-points-display">Available Talent Points: <span>${talentPoints}</span></div>
-                    <p class="tm-setting-description">Spend Talent Points earned from leveling up to unlock permanent passive bonuses for your mascot.</p>
+                    <h3>🌟 Talents</h3>
+                    <div class="tm-talent-points-display">Διαθέσιμοι Πόντοι Talent: <span>${talentPoints}</span></div>
+                    <p class="tm-setting-description">Ξοδέψτε πόντους που κερδίζετε από τα level up για να ξεκλειδώσετε μόνιμα passive bonuses.</p>
                     <div id="tm-talents-grid">${talentsGrid}</div>
                 </div>
             `;
@@ -4426,8 +4442,8 @@
         function getDataManagementHTML() {
             return `
                 <div class="tm-settings-section">
-                    <h3>💾 Data Management</h3>
-                    <p class="tm-setting-description">Export your progress (levels, coins, settings, etc.) to a file for backup or to transfer to another browser. Importing will overwrite current data.</p>
+                    <h3>💾 Διαχείριση Δεδομένων</h3>
+                    <p class="tm-setting-description">Εξάγετε την πρόοδό σας (levels, coins, ρυθμίσεις, κ.λπ.) σε ένα αρχείο για backup ή για μεταφορά σε άλλο browser. Η εισαγωγή θα αντικαταστήσει τα τρέχοντα δεδομένα.</p>
                     <div class="tm-data-actions">
                         <button id="tm-export-data-btn" class="tm-data-btn export">Export Data</button>
                         <button id="tm-import-data-btn" class="tm-data-btn import">Import Data</button>
@@ -4482,7 +4498,7 @@
 
                         // Basic validation
                         if (typeof importedData.USER_XP === 'undefined' && typeof importedData.autoRefreshEnabled === 'undefined') {
-                            throw new Error('Invalid backup file format.');
+                            throw new Error('Μη έγκυρη μορφή αρχείου backup.');
                         }
 
                         if (!confirm('Are you sure you want to import this data? All current progress and settings will be overwritten.')) {
@@ -4493,11 +4509,11 @@
                             GM_setValue(key, importedData[key]);
                         });
 
-                        alert('Data imported successfully! The page will now reload to apply the changes.');
+                        alert('Τα δεδομένα εισήχθησαν με επιτυχία! Η σελίδα θα ανανεωθεί για να εφαρμοστούν οι αλλαγές.');
                         window.location.reload();
 
                     } catch (error) {
-                        alert(`Error importing data: ${error.message}`);
+                        alert(`Σφάλμα κατά την εισαγωγή δεδομένων: ${error.message}`);
                         console.error('[MMS] Import failed:', error);
                     }
                 };
@@ -4541,7 +4557,7 @@
             const equippedItem = GM_getValue(STORAGE_KEYS.EQUIPPED_ITEM, null);
             let currentCoins = GM_getValue(STORAGE_KEYS.USER_COINS, 0);
 
-            shopContainer.innerHTML = ''; // Clear previous items
+            contentContainer.innerHTML = ''; // Clear previous items
 
             // Create content for each category
             for (const category in categories) {
@@ -4643,28 +4659,21 @@
                     <div class="tm-settings-layout">
                         <aside class="tm-settings-sidebar">
                             <ul class="tm-nav">
-                                <li><a href="#sec-general">Γενικά</a></li>
-                                <li><a href="#sec-search">Προηγ. Αναζήτηση</a></li>
-                                <li><a href="#sec-quick-search">Γρήγορη Αναζήτηση</a></li>
+                                <li><a href="#sec-general">Γενικές</a></li>
+                                <li><a href="#sec-search">Αναζήτηση & Εργαλεία</a></li>
                                 <li><a href="#sec-autorefresh">Αυτόματη Ανανέωση</a></li>
                                 <li><a href="#sec-scratchpad">Σημειωματάριο</a></li>
-                                <li><a href="#sec-levelup">Level-Up System</a></li>
-                                <li><a href="#sec-mascot">Mascot</a></li>
-                                <li><a href="#sec-talents">Talents</a></li>
+                                <li><a href="#sec-gamification">Gamification</a></li>
+                                <li><a href="#sec-data">Δεδομένα & Backup</a></li>
                                 <li style="display: none;" data-debug-only="true"><a href="#sec-debug">🔧 Debug</a></li>
-                                <li><a href="#sec-data">Data</a></li>
                             </ul>
                         </aside>
                         <main class="tm-settings-main" id="tm-settings-content">
                             <section id="sec-general">${getGeneralUISettingsHTML()}</section>
                             <section id="sec-search">${getSearchSettingsHTML()}</section>
-                            <section id="sec-quick-search">${getQuickSearchSettingsHTML()}</section>
                             <section id="sec-autorefresh">${getAutoRefreshSettingsHTML()}</section>
                             <section id="sec-scratchpad">${getScratchpadSettingsHTML()}</section>
-                            <section id="sec-levelup">${getLevelUpSettingsHTML()}</section>
-                            <section id="sec-mascot">${getMascotSettingsHTML()}</section>
-                            <section id="sec-talents">${getTalentsHTML()}</section>
-                            <!-- Shop is now a separate modal -->
+                            <section id="sec-gamification">${getLevelUpSettingsHTML()}${getMascotSettingsHTML()}${getTalentsHTML()}</section>
                             <section id="sec-debug">${getDebugSettingsHTML()}</section>
                             <section id="sec-data">${getDataManagementHTML()}</section>
                         </main>
@@ -4729,8 +4738,6 @@
             populateCheckbox('tm-setting-dashboard-enabled', 'dashboardWidgetEnabled');
             populateCheckbox('tm-setting-scroll-top-enabled', 'scrollToTopEnabled');
             populateCheckbox('tm-setting-tech-stats-enabled', 'technicianStatsEnabled');
-            populateCheckbox('tm-setting-customer-history-enabled', 'customerHistoryEnabled');
-            populateCheckbox('tm-setting-automated-parts-search-enabled', 'automatedPartsSearchEnabled');
             populateCheckbox('tm-setting-search-enabled', 'searchFeatureEnabled');
             populateCheckbox('tm-setting-hacker-search-enabled', 'hackerSearchEnabled');
             populateCheckbox('tm-setting-quick-search-enabled', 'quickSearchEnabled');
@@ -4738,6 +4745,7 @@
             populateCheckbox('tm-setting-levelup-enabled', 'levelUpSystemEnabled');
             populateCheckbox('tm-setting-mascot-enabled', 'interactiveMascotEnabled');
             populateCheckbox('tm-setting-confetti-enabled', 'confettiEnabled');
+            populateCheckbox('tm-setting-customer-history-enabled', 'customerHistoryEnabled');
 
             document.getElementById('tm-setting-weather-location').value = config.weatherLocation;
             document.getElementById('tm-setting-mascot-speed').value = config.mascotRoamingSpeed;
@@ -5281,6 +5289,28 @@
         }, 500);
         editor.addEventListener('input', debouncedSaveText);
 
+        // --- Cursor Position Saver ---
+        function saveCursorPosition(context) {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                const preSelectionRange = range.cloneRange();
+                preSelectionRange.selectNodeContents(context);
+                preSelectionRange.setEnd(range.startContainer, range.startOffset);
+                return preSelectionRange.toString().length;
+            }
+            return 0;
+        }
+
+        function restoreCursorPosition(context, position) {
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.setStart(context.firstChild || context, position > 0 ? 1 : 0); // Adjust based on content
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+
         // --- Markdown Formatting ---
         const applyMarkdownFormatting = debounce(() => {
             // This is a simple implementation. More complex scenarios might need a proper parser.
@@ -5302,16 +5332,6 @@
             editor.innerHTML = content;
         }, 700);
         editor.addEventListener('input', applyMarkdownFormatting);
-
-        // Clear current note's text
-        clearBtn.addEventListener('click', () => {
-            if (editor.innerHTML && confirm('Είστε σίγουροι ότι θέλετε να καθαρίσετε την τρέχουσα σημείωση;')) {
-                editor.innerHTML = '';
-                const now = new Date().toISOString();
-                updateActiveNote({ content: '', lastEdited: now });
-                updateLastEditedDisplay(now);
-            }
-        });
 
         // --- Tabs Logic ---
         function renderTabs() {
@@ -5531,44 +5551,38 @@
         }, 200));
 
         // --- Highlighting Logic for Search ---
+        // This function now uses a more robust method that preserves the cursor.
         function highlightSearchTermsInEditor() {
             const query = searchInput.value.trim();
-            // First, remove any existing highlights
-            editor.querySelectorAll('mark.tm-search-highlight').forEach(mark => {
-                mark.outerHTML = mark.innerHTML; // Unwrap the text
-            });
-            // Normalize the editor's HTML to merge adjacent text nodes
-            editor.normalize();
+            const content = editor.innerHTML;
 
-            if (!query) return; // No query, no highlighting
+            // 1. Remove old highlights by replacing <mark>...</mark> with its content.
+            // This is safer than manipulating the live DOM tree repeatedly.
+            let unhighlightedContent = content.replace(/<mark class="tm-search-highlight">(.*?)<\/mark>/gi, '$1');
 
-            const regex = new RegExp(`(${query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
-            const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
-            let node;
-            const nodesToReplace = [];
-
-            while (node = walker.nextNode()) {
-                if (node.parentElement.tagName === 'MARK') continue; // Don't search within highlights
-                if (regex.test(node.nodeValue)) {
-                    nodesToReplace.push(node);
-                }
+            // 2. Add new highlights if there's a query.
+            let highlightedContent = unhighlightedContent;
+            if (query) {
+                const regex = new RegExp(`(${query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
+                // Important: Only replace text that is not inside an HTML tag.
+                // This is a simplified but effective way to do it for this use case.
+                highlightedContent = unhighlightedContent.replace(/>([^<]+)</g, (match, textContent) => {
+                    return '>' + textContent.replace(regex, '<mark class="tm-search-highlight">$1</mark>') + '<';
+                });
             }
 
-            nodesToReplace.forEach(textNode => {
-                const newHTML = textNode.nodeValue.replace(regex, '<mark class="tm-search-highlight">$1</mark>');
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = newHTML;
-                const fragment = document.createDocumentFragment();
-                while (tempDiv.firstChild) {
-                    fragment.appendChild(tempDiv.firstChild);
-                }
-                textNode.parentNode.replaceChild(fragment, textNode);
-            });
+            // 3. Only update the editor's HTML if it has actually changed.
+            if (editor.innerHTML !== highlightedContent) {
+                editor.innerHTML = highlightedContent;
+            }
         }
 
         // --- Interactive Checklists Logic ---
         function renderCheckboxesInEditor() {
-            // Use a more robust method that doesn't rely on simple string replacement
+            // This function is now disabled as it was a primary cause of the cursor jumping.
+            // The toolbar buttons provide a more stable way to manage content.
+            return;
+
             const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
             let node;
             while (node = walker.nextNode()) {
@@ -5596,6 +5610,17 @@
                 }
             }
         }
+
+        // Clear current note's text
+        clearBtn.addEventListener('click', () => {
+            if (editor.innerHTML && confirm('Είστε σίγουροι ότι θέλετε να καθαρίσετε την τρέχουσα σημείωση;')) {
+                editor.innerHTML = '';
+                // Manually trigger the save function after clearing
+                const now = new Date().toISOString();
+                updateActiveNote({ content: '', lastEdited: now });
+                updateLastEditedDisplay(now);
+            }
+        });
 
         editor.addEventListener('input', debounce(renderCheckboxesInEditor, 300));
 
@@ -5947,11 +5972,55 @@
         overlay.className = 'tm-modal-overlay';
         overlay.id = 'tm-titles-modal';
 
+        // Get the base SVG for the mascot to display its evolutions
+        const mascotSVGTemplate = `
+            <svg class="tm-mascot-robot" viewBox="0 0 100 100" style="overflow: visible; width: 60px; height: 60px;">
+                <g class="tm-mascot-flipper" transform-origin="50 50">
+                    <g id="tm-mascot-base" style="display: none;">
+                        <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#333" stroke-width="2"/><circle cx="50" cy="5" r="3" fill="#ffc107"/></g>
+                        <g class="tm-mascot-main-body"><rect x="25" y="15" width="50" height="40" rx="10" fill="#e0e0e0" stroke="#333" stroke-width="3"/><g class="tm-mascot-eye-open"><circle cx="40" cy="35" r="5" fill="white"/><circle cx="40" cy="35" r="2" fill="black"/><circle cx="60" cy="35" r="5" fill="white"/><circle cx="60" cy="35" r="2" fill="black"/></g><path class="tm-mascot-mouth-happy" d="M 40 45 Q 50 55 60 45" stroke="black" stroke-width="2" fill="none"/><rect x="20" y="55" width="60" height="30" rx="5" fill="#d0d0d0" stroke="#333" stroke-width="3"/></g>
+                        <g class="tm-mascot-thrusters"><rect class="tm-mascot-thruster-left" x="30" y="85" width="15" height="10" fill="#6c757d"/><rect class="tm-mascot-thruster-right" x="55" y="85" width="15" height="10" fill="#6c757d"/></g>
+                    </g>
+                    <g id="tm-mascot-evo1" style="display: none;">
+                        <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#555" stroke-width="2"/><circle cx="50" cy="5" r="3" fill="#17a2b8"/></g>
+                        <g class="tm-mascot-main-body"><rect x="25" y="15" width="50" height="40" rx="5" fill="#d4e6f1" stroke="#34495e" stroke-width="3"/><g class="tm-mascot-eye-open"><rect x="35" y="32" width="10" height="6" fill="white" rx="1"/><rect x="55" y="32" width="10" height="6" fill="white" rx="1"/></g><path class="tm-mascot-mouth-happy" d="M 40 45 Q 50 50 60 45" stroke="black" stroke-width="2" fill="none"/><rect x="20" y="55" width="60" height="30" rx="3" fill="#b9d7ea" stroke="#34495e" stroke-width="3"/></g>
+                        <g class="tm-mascot-thrusters"><rect class="tm-mascot-thruster-left" x="30" y="85" width="15" height="10" fill="#5d6d7e" rx="2"/><rect class="tm-mascot-thruster-right" x="55" y="85" width="15" height="10" fill="#5d6d7e" rx="2"/></g>
+                    </g>
+                    <g id="tm-mascot-evo2" style="display: none;">
+                        <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#333" stroke-width="2"/><circle cx="50" cy="5" r="3" fill="#ffc107" stroke="#fff" stroke-width="0.5"/></g>
+                        <g class="tm-mascot-main-body"><rect x="25" y="15" width="50" height="40" rx="8" fill="#f1f1f1" stroke="#ffc107" stroke-width="3"/><g class="tm-mascot-eye-open"><path d="M 35 32 L 45 32 L 40 40 Z" fill="#17a2b8"/><path d="M 55 32 L 65 32 L 60 40 Z" fill="#17a2b8"/></g><path class="tm-mascot-mouth-happy" d="M 40 48 L 60 48" stroke="black" stroke-width="2" fill="none"/><rect x="20" y="55" width="60" height="30" rx="5" fill="#e0e0e0" stroke="#ffc107" stroke-width="3"/></g>
+                        <g class="tm-mascot-thrusters"><rect class="tm-mascot-thruster-left" x="30" y="85" width="15" height="12" fill="#333" rx="3"/><rect class="tm-mascot-thruster-right" x="55" y="85" width="15" height="12" fill="#333" rx="3"/></g>
+                    </g>
+                    <g id="tm-mascot-evo3" style="display: none;">
+                        <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#a335ee" stroke-width="2.5"/><circle cx="50" cy="5" r="3.5" fill="#f0f" stroke="#fff" stroke-width="1"/></g>
+                        <g class="tm-mascot-main-body"><rect x="25" y="15" width="50" height="40" rx="12" fill="#2c2c2c" stroke="#a335ee" stroke-width="3"/><g class="tm-mascot-eye-open"><path d="M 35 30 L 45 40 M 45 30 L 35 40" stroke="#f0f" stroke-width="2"/><path d="M 55 30 L 65 40 M 65 30 L 55 40" stroke="#f0f" stroke-width="2"/></g><path class="tm-mascot-mouth-happy" d="M 40 48 L 60 48" stroke="#f0f" stroke-width="2" fill="none"/><rect x="20" y="55" width="60" height="30" rx="8" fill="#3c3c3c" stroke="#a335ee" stroke-width="3"/></g>
+                        <g class="tm-mascot-thrusters"><rect class="tm-mascot-thruster-left" x="30" y="85" width="15" height="15" fill="#a335ee" rx="4"/><rect class="tm-mascot-thruster-right" x="55" y="85" width="15" height="15" fill="#a335ee" rx="4"/></g>
+                    </g>
+                    <g id="tm-mascot-evo4" style="display: none;">
+                        <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#ff8000" stroke-width="3"/><circle cx="50" cy="5" r="4" fill="#ffc107" stroke="#fff" stroke-width="1"><animate attributeName="r" values="4;5;4" dur="1.5s" repeatCount="indefinite"/></circle></g>
+                        <g class="tm-mascot-main-body"><rect x="25" y="15" width="50" height="40" rx="15" fill="#fff" stroke="#ff8000" stroke-width="4"/><g class="tm-mascot-eye-open"><circle cx="40" cy="35" r="6" fill="#ff8000"/><circle cx="60" cy="35" r="6" fill="#ff8000"/></g><path class="tm-mascot-mouth-happy" d="M 40 45 Q 50 55 60 45" stroke="#ff8000" stroke-width="3" fill="none"/><rect x="20" y="55" width="60" height="30" rx="10" fill="#eee" stroke="#ff8000" stroke-width="4"/></g>
+                        <g class="tm-mascot-thrusters"><rect class="tm-mascot-thruster-left" x="30" y="85" width="15" height="15" fill="#ff8000" rx="5"/><rect class="tm-mascot-thruster-right" x="55" y="85" width="15" height="15" fill="#ff8000" rx="5"/></g>
+                    </g>
+                </g>
+            </svg>
+        `;
+
         const titlesHTML = RANKS.map(rank => {
             const isUnlocked = currentLevel >= rank.level;
             const glowStyle = rank.glow ? `text-shadow: 0 0 5px ${rank.color};` : '';
+            let mascotDisplayHTML = '';
+
+            if (config.interactiveMascotEnabled) {
+                if (rank.level === 1) mascotDisplayHTML = mascotSVGTemplate.replace('id="tm-mascot-base" style="display: none;"', 'id="tm-mascot-base" style="display: block;"');
+                if (rank.level === 10) mascotDisplayHTML = mascotSVGTemplate.replace('id="tm-mascot-evo1" style="display: none;"', 'id="tm-mascot-evo1" style="display: block;"');
+                if (rank.level === 25) mascotDisplayHTML = mascotSVGTemplate.replace('id="tm-mascot-evo2" style="display: none;"', 'id="tm-mascot-evo2" style="display: block;"');
+                if (rank.level === 50) mascotDisplayHTML = mascotSVGTemplate.replace('id="tm-mascot-evo3" style="display: none;"', 'id="tm-mascot-evo3" style="display: block;"');
+                if (rank.level === 100) mascotDisplayHTML = mascotSVGTemplate.replace('id="tm-mascot-evo4" style="display: none;"', 'id="tm-mascot-evo4" style="display: block;"');
+            }
+
             return `
                 <div class="tm-title-item ${isUnlocked ? 'unlocked' : 'locked'}">
+                    ${mascotDisplayHTML ? `<div class="tm-title-mascot-preview">${mascotDisplayHTML}</div>` : ''}
                     <div class="tm-title-level">Lv. ${rank.level}</div>
                     <div class="tm-title-name" style="color: ${rank.color}; ${glowStyle}">${rank.title}</div>
                 </div>
@@ -5959,7 +6028,7 @@
         }).join('');
 
         overlay.innerHTML = `
-            <div class="tm-modal-content" style="max-width: 500px; height: auto;">
+            <div class="tm-modal-content" style="max-width: 600px; height: auto;">
                 <div class="tm-modal-header"><h2 class="tm-modal-title">🏆 Titles & Ranks</h2><button class="tm-modal-close">&times;</button></div>
                 <div id="tm-titles-container">${titlesHTML}</div>
             </div>
@@ -7029,6 +7098,30 @@
                             <rect x="20" y="55" width="60" height="30" rx="5" fill="#e0e0e0" stroke="#ffc107" stroke-width="3"/>
                         </g>
                         <g class="tm-mascot-thrusters"><rect class="tm-mascot-thruster-left" x="30" y="85" width="15" height="12" fill="#333" rx="3"/><rect class="tm-mascot-thruster-right" x="55" y="85" width="15" height="12" fill="#333" rx="3"/></g>
+                    </g>
+
+                    <!-- Evo 3 Form (Lv 50+) - Prophet, purple/dark theme -->
+                    <g id="tm-mascot-evo3" style="display: none;">
+                        <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#a335ee" stroke-width="2.5"/><circle cx="50" cy="5" r="3.5" fill="#f0f" stroke="#fff" stroke-width="1"/></g>
+                        <g class="tm-mascot-main-body">
+                            <rect x="25" y="15" width="50" height="40" rx="12" fill="#2c2c2c" stroke="#a335ee" stroke-width="3"/>
+                            <g class="tm-mascot-eye-open"><path d="M 35 30 L 45 40 M 45 30 L 35 40" stroke="#f0f" stroke-width="2"/><path d="M 55 30 L 65 40 M 65 30 L 55 40" stroke="#f0f" stroke-width="2"/></g>
+                            <path class="tm-mascot-mouth-happy" d="M 40 48 L 60 48" stroke="#f0f" stroke-width="2" fill="none"/>
+                            <rect x="20" y="55" width="60" height="30" rx="8" fill="#3c3c3c" stroke="#a335ee" stroke-width="3"/>
+                        </g>
+                        <g class="tm-mascot-thrusters"><rect class="tm-mascot-thruster-left" x="30" y="85" width="15" height="15" fill="#a335ee" rx="4"/><rect class="tm-mascot-thruster-right" x="55" y="85" width="15" height="15" fill="#a335ee" rx="4"/></g>
+                    </g>
+
+                    <!-- Evo 4 Form (Lv 100+) - Master, gold/white theme -->
+                    <g id="tm-mascot-evo4" style="display: none;">
+                        <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#ff8000" stroke-width="3"/><circle cx="50" cy="5" r="4" fill="#ffc107" stroke="#fff" stroke-width="1"><animate attributeName="r" values="4;5;4" dur="1.5s" repeatCount="indefinite"/></circle></g>
+                        <g class="tm-mascot-main-body">
+                            <rect x="25" y="15" width="50" height="40" rx="15" fill="#fff" stroke="#ff8000" stroke-width="4"/>
+                            <g class="tm-mascot-eye-open"><circle cx="40" cy="35" r="6" fill="#ff8000"/><circle cx="60" cy="35" r="6" fill="#ff8000"/></g>
+                            <path class="tm-mascot-mouth-happy" d="M 40 45 Q 50 55 60 45" stroke="#ff8000" stroke-width="3" fill="none"/>
+                            <rect x="20" y="55" width="60" height="30" rx="10" fill="#eee" stroke="#ff8000" stroke-width="4"/>
+                        </g>
+                        <g class="tm-mascot-thrusters"><rect class="tm-mascot-thruster-left" x="30" y="85" width="15" height="15" fill="#ff8000" rx="5"/><rect class="tm-mascot-thruster-right" x="55" y="85" width="15" height="15" fill="#ff8000" rx="5"/></g>
                     </g>
 
                     <!-- Accessories (apply to all forms) -->
