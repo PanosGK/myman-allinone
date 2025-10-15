@@ -636,6 +636,7 @@
         UNLOCKED_TALENTS: 'tm_unlocked_talents',
         USER_NOTIFICATIONS: 'tm_user_notifications_v1',
         ENERGIZED_BUFF_EXPIRES: 'tm_energized_buff_expires',
+        DOUBLE_COINS_BUFF_EXPIRES: 'tm_double_coins_buff_expires',
 
         // Add other keys here as needed
     };
@@ -772,18 +773,18 @@
         }, 5000); // Show for 5 seconds
     }
 
-    function grantXp(points) {
+    function grantXp(points, sourceStat = null) {
         let indicator = null; // Declare indicator at the function scope
         let currentXp = config.levelUpSystemEnabled ? GM_getValue(STORAGE_KEYS.USER_XP, 0) : 0;
         let currentLevel = GM_getValue(STORAGE_KEYS.USER_LEVEL, 1);
 
         // --- Apply Talent Bonuses ---
         const unlockedTalents = JSON.parse(GM_getValue(STORAGE_KEYS.UNLOCKED_TALENTS, '[]'));
-        let talentMultiplier = 1.0;
+        let talentMultiplier = 1.0; // Start with a base multiplier of 1
         // Find if any talent modifies the XP for the current action
-        const relevantTalent = TALENT_TREE.find(t => unlockedTalents.includes(t.id) && t.bonus.type === 'xp_modifier' && (t.bonus.stat === 'repairsCompleted' || t.bonus.stat === 'ordersCreated' || t.bonus.stat === 'searches' || t.bonus.stat === 'anyGamePlayed'));
-        if (relevantTalent) {
-            talentMultiplier += relevantTalent.bonus.multiplier;
+        const relevantTalent = TALENT_TREE.find(t => unlockedTalents.includes(t.id) && t.bonus.type === 'xp_modifier' && t.bonus.stat === sourceStat);
+        if (sourceStat && relevantTalent) {
+            talentMultiplier += relevantTalent.bonus.multiplier; // Add the bonus from the talent
         }
 
         // Apply XP Boost based on level
@@ -872,7 +873,18 @@
                         if (oldAccessory) oldAccessory.style.display = 'none';
                     }
                     GM_setValue(STORAGE_KEYS.EQUIPPED_ITEM, 'master_crown');
-                    const newAccessory = document.getElementById('master_crown');
+                    let newAccessory;
+                    // Handle special cases where item ID doesn't match element ID
+                    // In this specific case, we know the item is 'master_crown'
+                    switch ('master_crown') {
+                        case 'bookworm_kit': newAccessory = document.querySelector('.tm-mascot-book'); break;
+                        case 'stunt_bike': newAccessory = document.querySelector('.tm-mascot-bicycle'); break;
+                        case 'juggling_balls': newAccessory = document.querySelector('.tm-mascot-ball'); break;
+                        case 'cool_shades': newAccessory = document.querySelector('.tm-mascot-sunglasses'); break;
+                        case 'rainy_day_umbrella': newAccessory = document.querySelector('.tm-mascot-umbrella'); break;
+                        default: newAccessory = document.getElementById('master_crown');
+                    }
+ 
                     if (newAccessory) {
                         newAccessory.style.display = 'block';
                     }
@@ -946,6 +958,13 @@
             coinMultiplier += coinTalent.bonus.multiplier;
         }
 
+        // Apply "Double Coins" buff if active
+        const doubleCoinsExpires = GM_getValue(STORAGE_KEYS.DOUBLE_COINS_BUFF_EXPIRES, 0);
+        if (Date.now() < doubleCoinsExpires) {
+            coinMultiplier += 1.0; // Add 100% bonus
+        }
+
+
         currentCoins += Math.ceil(amount * coinMultiplier);
         GM_setValue(STORAGE_KEYS.USER_COINS, currentCoins);
         // Update quest progress for earning coins
@@ -1007,7 +1026,7 @@
         if (achievementTrackedStats.includes(statName))
         checkAchievements(statName, stats[statName]);
 
-        // Update quest progress
+        // Update quest progress for all stats
         if (typeof updateQuestProgress === 'function') {
             updateQuestProgress(statName, value);
         }
@@ -1020,7 +1039,7 @@
 
         // Grant XP for the action
         if (config.levelUpSystemEnabled && XP_CONFIG[statName]) {
-            grantXp(XP_CONFIG[statName]);
+            grantXp(XP_CONFIG[statName], statName); // Pass the source stat for talent calculation
         }
         if (config.interactiveMascotEnabled) {
             // Make the pet happy for user activity
@@ -1256,16 +1275,73 @@
     const UI_THEMES = {
         'default': { name: 'Default', icon: '🎨', cost: 0, colors: DEFAULTS.defaultThemeColors },
         'matrix': {
-            name: 'Matrix', icon: '📟', cost: 500,
-            colors: { '--tm-primary-color': '#00ff00', '--tm-primary-hover': '#00aa00', '--tm-success-color': '#00dd00', '--tm-success-hover': '#009900', '--tm-dark-color': '#080808', '--tm-dark-hover': '#000000', '--tm-info-color': '#00cc00', '--tm-warning-color': '#00ff00' }
+            name: 'Matrix', icon: '📟', cost: 500, type: 'theme',
+            colors: { '--tm-primary-color': '#00ff00', '--tm-primary-hover': '#00aa00', '--tm-success-color': '#00dd00', '--tm-success-hover': '#009900', '--tm-dark-color': '#080808', '--tm-dark-hover': '#000000', '--tm-info-color': '#00cc00', '--tm-warning-color': '#00ff00' },
+            pageStyles: `
+                body, .rnr-c, .rnr-cw-grid, .rnr-s-2, .rnr-s-undermenu, .rnr-s-menu, .rnr-page { background: #050505 !important; color: #0f0 !important; }
+                .rnr-b-vmenu a, .rnr-b-vmenu a:hover { color: #0f0 !important; }
+                .rnr-b-vmenu li.current > div { background: #0a2a0a !important; border-left: 3px solid #0f0; }
+                .rnr-top, #head-outter, #footer-outter { background-color: #000 !important; }
+                .rnr-gridtable tr.rnr-row, .rnr-gridtable tr.rnr-toprow { background: #080808 !important; color: #0f0 !important; }
+                .rnr-gridtable tr.rnr-row:hover { background: #111 !important; }
+                .rnr-gridtable td, .rnr-gridtable th { border-color: #0f0 !important; color: #0f0 !important; }
+                a, a:visited { color: #3f3 !important; }
+                input, select { background: #111 !important; color: #0f0 !important; border: 1px solid #0f0 !important; }
+            `
         },
         'oceanic': {
-            name: 'Oceanic', icon: '🌊', cost: 500,
-            colors: { '--tm-primary-color': '#1E90FF', '--tm-primary-hover': '#104E8B', '--tm-success-color': '#20B2AA', '--tm-success-hover': '#2F4F4F', '--tm-dark-color': '#000080', '--tm-dark-hover': '#000033', '--tm-info-color': '#48D1CC', '--tm-warning-color': '#FFD700' }
+            name: 'Oceanic', icon: '🌊', cost: 500, type: 'theme',
+            colors: { '--tm-primary-color': '#1E90FF', '--tm-primary-hover': '#104E8B', '--tm-success-color': '#20B2AA', '--tm-success-hover': '#2F4F4F', '--tm-dark-color': '#000080', '--tm-dark-hover': '#000033', '--tm-info-color': '#48D1CC', '--tm-warning-color': '#FFD700' },
+            pageStyles: `
+                body, .rnr-page { background: #f0f8ff !important; }
+                #head-outter, #footer-outter { background-color: #000080 !important; }
+                .rnr-s-menu { background: #e6f2ff !important; }
+                .rnr-b-vmenu li.current > div { background: #cce4ff !important; border-left: 3px solid #1E90FF; }
+                .rnr-cw-grid, .rnr-s-2, .rnr-s-undermenu { background: #ffffff !important; }
+                .rnr-gridtable tr.rnr-row:hover { background: #e6f2ff !important; }
+            `
+        },
+        'cyberpunk': {
+            name: 'Cyberpunk', icon: '🌃', cost: 750, type: 'theme',
+            colors: { '--tm-primary-color': '#ff00ff', '--tm-primary-hover': '#cc00cc', '--tm-success-color': '#00ffff', '--tm-success-hover': '#00cccc', '--tm-dark-color': '#1a0a2a', '--tm-dark-hover': '#0a001a', '--tm-info-color': '#00aaff', '--tm-warning-color': '#ffff00' },
+            pageStyles: `
+                body, .rnr-page { background: #0a001a !important; color: #00ffff !important; }
+                #head-outter, #footer-outter { background-color: #1a0a2a !important; border-bottom: 1px solid #ff00ff; border-top: 1px solid #ff00ff; }
+                .rnr-s-menu { background: #100520 !important; }
+                .rnr-b-vmenu a, .rnr-b-vmenu a:hover { color: #00ffff !important; }
+                .rnr-b-vmenu li.current > div { background: #2a0a3a !important; border-left: 3px solid #ff00ff; }
+                .rnr-cw-grid, .rnr-s-2, .rnr-s-undermenu { background: #100520 !important; }
+                .rnr-gridtable tr.rnr-row, .rnr-gridtable tr.rnr-toprow { background: #1a0a2a !important; color: #00ffff !important; }
+                .rnr-gridtable tr.rnr-row:hover { background: #2a0a3a !important; }
+                .rnr-gridtable td, .rnr-gridtable th { border-color: #ff00ff !important; color: #00ffff !important; }
+                a, a:visited { color: #ff00ff !important; }
+                input, select { background: #1a0a2a !important; color: #00ffff !important; border: 1px solid #ff00ff !important; }
+            `
+        },
+        'solarized_dark': {
+            name: 'Solarized Dark', icon: '☀️', cost: 750, type: 'theme',
+            colors: { '--tm-primary-color': '#268bd2', '--tm-primary-hover': '#1a6094', '--tm-success-color': '#859900', '--tm-success-hover': '#5d6b00', '--tm-dark-color': '#073642', '--tm-dark-hover': '#002b36', '--tm-info-color': '#2aa198', '--tm-warning-color': '#b58900' },
+            pageStyles: `
+                body, .rnr-page { background: #002b36 !important; color: #839496 !important; }
+                #head-outter, #footer-outter { background-color: #073642 !important; }
+                .rnr-s-menu { background: #073642 !important; }
+                .rnr-b-vmenu a, .rnr-b-vmenu a:hover { color: #93a1a1 !important; }
+                .rnr-b-vmenu li.current > div { background: #002b36 !important; border-left: 3px solid #268bd2; }
+                .rnr-cw-grid, .rnr-s-2, .rnr-s-undermenu { background: #073642 !important; }
+                .rnr-gridtable tr.rnr-row, .rnr-gridtable tr.rnr-toprow { background: #073642 !important; color: #839496 !important; }
+                .rnr-gridtable tr.rnr-row:hover { background: #002b36 !important; }
+                .rnr-gridtable td, .rnr-gridtable th { border-color: #586e75 !important; color: #839496 !important; }
+                a, a:visited { color: #268bd2 !important; }
+                input, select { background: #002b36 !important; color: #93a1a1 !important; border: 1px solid #586e75 !important; }
+            `
         },
     };
 
     function applyTheme(themeId) {
+        // Remove any existing theme stylesheet
+        const existingStyle = document.getElementById('tm-page-theme-styles');
+        if (existingStyle) existingStyle.remove();
+
         const theme = UI_THEMES[themeId] || UI_THEMES['default'];
         console.log(`[MMS] Applying theme: ${theme.name}`);
         for (const [variable, color] of Object.entries(theme.colors)) {
@@ -1273,6 +1349,14 @@
         }
         GM_setValue(STORAGE_KEYS.EQUIPPED_THEME, themeId);
         config.equippedTheme = themeId;
+
+        // Inject page-specific styles if they exist for the theme
+        if (theme.pageStyles) {
+            const styleEl = document.createElement('style');
+            styleEl.id = 'tm-page-theme-styles';
+            styleEl.innerHTML = theme.pageStyles;
+            document.head.appendChild(styleEl);
+        }
     }
 
     // The global config object. It will be populated by loadSettings().
@@ -1469,7 +1553,7 @@
             }
             .tm-modal-content {
                 background: #fff; padding: 25px; border-radius: 8px;
-                width: 90%; max-width: 700px; /* Made smaller */
+                width: 90%; max-width: 800px;
                 box-shadow: 0 5px 15px rgba(0,0,0,0.3);
                 height: 85vh; /* Use fixed height to prevent resizing between tabs */
                 display: flex; flex-direction: column;
@@ -1795,6 +1879,7 @@
                 border: none;
                 border-radius: 5px;
                 cursor: pointer;
+                min-width: 220px; /* Ensure buttons have the same width */
                 transition: background-color 0.2s, transform 0.1s ease-out, box-shadow 0.2s;
             }
             #tm-settings-save { background-color: var(--tm-primary-color); }
@@ -3096,13 +3181,12 @@
         let searchResults = []; // Holds results from a search
         let searchTerms = []; // Holds the split terms of the current query
 
-        // --- UI Creation ---
         function createSearchModal() {
+            if (document.querySelector('.tm-modal-overlay')) return; // Prevent multiple modals
+
             const overlay = document.createElement('div');
             overlay.className = 'tm-modal-overlay';
-            if (config.hackerSearchEnabled) {
-                overlay.classList.add('tm-hacker-theme-enabled');
-            }
+            overlay.classList.toggle('tm-hacker-theme-enabled', config.hackerSearchEnabled);
             overlay.innerHTML = `
                 <div class="tm-modal-content">
                     <div class="tm-modal-header">
@@ -3471,6 +3555,7 @@
 
         let urlsToProcess = [];
         let processedUrls = new Set();
+        let activeSearchRequests = 0;
 
         // This function remains within initSearchFeature as it's specific to the search modal's operation
         function processNextUrl(onComplete) {
@@ -3489,6 +3574,7 @@
             // where a page might be added to the queue multiple times.
             processedUrls.add(url);
 
+            activeSearchRequests++; // Increment for the new request
             console.log(`Searching in: ${url} for terms:`, searchTerms);
 
             GM_xmlhttpRequest({
@@ -3497,12 +3583,20 @@
                 onload: function(response) {
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(response.responseText, 'text/html');
-                    parseAndSearchPage(doc, response.finalUrl); // Pass the final URL as a base for relative links
-                    processNextUrl(onComplete); // Process the next URL in the queue
+                    parseAndSearchPage(doc, response.finalUrl);
+                    activeSearchRequests--; // Decrement after processing
+                    // Process the next URL in the queue if there is one
+                    if (urlsToProcess.length > 0) {
+                        processNextUrl(onComplete);
+                    } else if (activeSearchRequests === 0) {
+                        // Only call onComplete when all requests are finished
+                        if (onComplete) onComplete();
+                    }
                 },
                 onerror: function(error) {
                     console.error(`Error fetching ${url}:`, error);
-                    processNextUrl(onComplete); // Continue with the next URL even if one fails
+                    activeSearchRequests--; // Decrement on error too
+                    if (urlsToProcess.length > 0) processNextUrl(onComplete);
                 }
             });
         }
@@ -3519,8 +3613,6 @@
                 }
             });
 
-            urlsToProcess.push(...SEARCH_URLS);
-
             doc.querySelectorAll('tbody tr').forEach(row => {
                 const rowText = row.innerText.toLowerCase();
                 // Check if the row text includes ALL search terms (AND logic)
@@ -3529,7 +3621,7 @@
                 if (allTermsMatch) {
                     const linkUrl = findOrderLink(row, pageBaseUrl);
 
-                    if (!searchResults.some(r => r.rowHTML === row.innerHTML)) {
+                    if (linkUrl && !searchResults.some(r => r.orderLink === linkUrl)) {
                         searchResults.push({
                             term: document.getElementById('tm-search-input').value.trim(),
                             rowHTML: row.innerHTML,
@@ -3540,7 +3632,6 @@
             });
         }
 
-        // This function remains within initSearchFeature as it's specific to the search modal's operation
         // --- Results & Printing ---
         function toggleOrderDetails(result, itemDiv) {
             console.log('[MMS] Toggling details for:', result);
@@ -3588,7 +3679,6 @@
             });
         }
 
-        // This function remains within initSearchFeature as it's specific to the search modal's operation
         function displayResults() {
             const resultsContainer = document.getElementById('tm-results-container');
             const submitBtn = document.getElementById('tm-search-submit');
@@ -3655,15 +3745,13 @@
         // New function for adding print button to edit pages
         function addPrintButtonToEditPage() {
             const buttonsLeftContainer = document.querySelector('.rnr-buttons-left');
-            if (!buttonsLeftContainer) {
+            if (!buttonsLeftContainer || document.querySelector('.tm-print-page-btn')) {
                 console.warn('[MMS] Could not find .rnr-buttons-left container for print button.');
                 return;
             }
 
             const printButton = document.createElement('a'); // Using 'a' for consistent styling with other buttons
             printButton.className = 'rnr-button main tm-print-page-btn'; // Reusing rnr-button main for consistent look
-            printButton.textContent = 'Εκτύπωση Παραγγελίας';
-            printButton.href = '#'; // Prevent actual navigation
             printButton.style.marginLeft = '10px'; // Add some spacing
 
             printButton.addEventListener('click', (e) => {
@@ -3672,6 +3760,8 @@
             });
 
             buttonsLeftContainer.appendChild(printButton);
+            printButton.textContent = 'Εκτύπωση Παραγγελίας';
+            printButton.href = '#'; // Prevent actual navigation
             console.log('[MMS] Print button added to edit page.');
         }
 
@@ -3679,15 +3769,11 @@
         const pathname = window.location.pathname;
         const isEditPage = pathname.includes('_edit.php');
 
-        if (isEditPage) {
-            if (pathname.includes('/mymanagerservice/service_edit.php')) {
-                // On a service/repair page, add the quick search panel.
-                createQuickSearchPanel();
-            } else {
-                // On other edit pages (like an order), add the print button.
-                addPrintButtonToEditPage();
-            }
-        } else {
+        if (isEditPage && pathname.includes('/mymanagerservice/service_edit.php')) {
+            createQuickSearchPanel();
+        } else if (isEditPage) {
+            addPrintButtonToEditPage();
+        } else if (pathname.includes('_list.php')) {
             // On non-edit pages (list pages), just add the main search button.
             addMainButton();
         }
@@ -4017,6 +4103,26 @@
             `;
         }
 
+        function getDebugSettingsHTML() {
+            return `
+                <div class="tm-settings-section">
+                    <h3>🔧 Debug Controls</h3>
+                    <div class="tm-setting-row">
+                        <div class="tm-setting-label"><label for="tm-debug-level-input">Set Level</label></div>
+                        <div class="tm-setting-control"><input type="number" id="tm-debug-level-input" min="1" value="${GM_getValue(STORAGE_KEYS.USER_LEVEL, 1)}"><button id="tm-debug-set-level-btn">Set</button></div>
+                    </div>
+                    <div class="tm-setting-row">
+                        <div class="tm-setting-label"><label for="tm-debug-xp-input">Add XP</label></div>
+                        <div class="tm-setting-control"><input type="number" id="tm-debug-xp-input" value="100"><button id="tm-debug-add-xp-btn">Add</button></div>
+                    </div>
+                    <div class="tm-setting-row">
+                        <div class="tm-setting-label"><label for="tm-debug-coins-input">Add Coins</label></div>
+                        <div class="tm-setting-control"><input type="number" id="tm-debug-coins-input" value="1000"><button id="tm-debug-add-coins-btn">Add</button></div>
+                    </div>
+                </div>
+            `;
+        }
+
         function showShopModal() {
             if (document.querySelector('#tm-shop-modal')) return; // Prevent multiple modals
 
@@ -4044,38 +4150,40 @@
             // --- Shop Logic ---
             overlay.querySelector('#tm-shop-container')?.addEventListener('click', (e) => {
                 if (e.target.matches('.tm-shop-item-btn')) {
-                    const button = e.target;
-                    const itemId = button.dataset.itemId;
-                    const itemCost = parseInt(button.dataset.itemCost, 10);
-                    const itemType = button.dataset.itemType;
+                    if (e.target.classList.contains('buy')) {
+                        handleShopPurchase(e.target); // This function is already defined and handles purchases
+                    } else if (e.target.classList.contains('equip')) {
+                        const button = e.target;
+                        const itemId = button.dataset.itemId;
+                        const itemType = button.dataset.itemType;
 
-                    if (button.classList.contains('buy')) {
-                        // Purchase logic
-                        let currentCoins = GM_getValue(STORAGE_KEYS.USER_COINS, 0);
-                        if (currentCoins >= itemCost) {
-                            currentCoins -= itemCost;
-                            GM_setValue(STORAGE_KEYS.USER_COINS, currentCoins);
-                            updateCoinBalanceUI(currentCoins);
-
-                            let purchased = JSON.parse(GM_getValue(STORAGE_KEYS.PURCHASED_ITEMS, '[]'));
-                            purchased.push(itemId);
-                            GM_setValue(STORAGE_KEYS.PURCHASED_ITEMS, JSON.stringify(purchased));
-
-                            showPositiveMessage('Αγορά επιτυχής!');
-                            populateShop(); // Re-render the shop
-                        } else {
-                            alert('Δεν έχετε αρκετά Fixer-Coins!');
-                        }
-                    } else if (button.classList.contains('equip')) {
                         // Equip logic
                         if (itemType === 'accessory') {
                             const equippedItem = GM_getValue(STORAGE_KEYS.EQUIPPED_ITEM, null);
                             if (equippedItem) {
-                                const oldAccessory = document.getElementById(equippedItem);
+                                let oldAccessory;
+                                // Handle special cases for unequipping
+                                switch (equippedItem) {
+                                    case 'bookworm_kit': oldAccessory = document.querySelector('.tm-mascot-book'); break;
+                                    case 'stunt_bike': oldAccessory = document.querySelector('.tm-mascot-bicycle'); break;
+                                    case 'juggling_balls': oldAccessory = document.querySelector('.tm-mascot-ball'); break;
+                                    case 'cool_shades': oldAccessory = document.querySelector('.tm-mascot-sunglasses'); break;
+                                    case 'rainy_day_umbrella': oldAccessory = document.querySelector('.tm-mascot-umbrella'); break;
+                                    default: oldAccessory = document.getElementById(equippedItem);
+                                }
                                 if (oldAccessory) oldAccessory.style.display = 'none';
                             }
                             GM_setValue(STORAGE_KEYS.EQUIPPED_ITEM, itemId);
-                            const newAccessory = document.getElementById(itemId);
+                            let newAccessory;
+                            // Handle special cases for equipping
+                            switch (itemId) {
+                                case 'bookworm_kit': newAccessory = document.querySelector('.tm-mascot-book'); break;
+                                case 'stunt_bike': newAccessory = document.querySelector('.tm-mascot-bicycle'); break;
+                                case 'juggling_balls': newAccessory = document.querySelector('.tm-mascot-ball'); break;
+                                case 'cool_shades': newAccessory = document.querySelector('.tm-mascot-sunglasses'); break;
+                                case 'rainy_day_umbrella': newAccessory = document.querySelector('.tm-mascot-umbrella'); break;
+                                default: newAccessory = document.getElementById(itemId);
+                            }
                             if (newAccessory) newAccessory.style.display = 'block';
                         } else if (itemType === 'theme') {
                             applyTheme(itemId);
@@ -4369,9 +4477,23 @@
             const shopContainer = document.getElementById('tm-shop-container');
             if (!shopContainer) return;
 
-            const shopItems = [ // Accessories
+            const shopItems = [
+                 // Accessories
                 { id: 'top_hat', name: 'Top Hat', icon: '🎩', cost: 250, type: 'accessory' },
-            ].concat(Object.entries(UI_THEMES).map(([id, theme]) => ({ ...theme, id, type: 'theme' }))); // Themes
+                { id: 'cool_shades', name: 'Cool Shades', icon: '😎', cost: 350, type: 'accessory' },
+                { id: 'rainy_day_umbrella', name: 'Rainy Day Umbrella', icon: '☂️', cost: 350, type: 'accessory' },
+                { id: 'bookworm_kit', name: 'Bookworm Kit', icon: '📚', cost: 300, type: 'accessory' },
+                { id: 'stunt_bike', name: 'Stunt Bike', icon: '🚲', cost: 750, type: 'accessory' },
+                { id: 'juggling_balls', name: 'Juggling Balls', icon: '🤹', cost: 400, type: 'accessory' },
+                // Consumables
+                { id: 'reroll_token', name: 'Bounty Reroll Token', icon: '🔄', cost: 100, type: 'consumable' },
+                { id: 'energized_drink', name: 'Energized Drink', icon: '⚡️', cost: 150, type: 'consumable', description: 'Grants +10% XP for 15 minutes.' },
+                { id: 'double_coins_voucher', name: 'Double Coins Voucher', icon: '💰', cost: 200, type: 'consumable', description: 'Doubles all Fixer-Coin earnings for 10 minutes.' },
+                { id: 'happiness_snack', name: 'Happiness Snack', icon: '💖', cost: 50, type: 'consumable', description: 'Instantly maxes out mascot happiness.' },
+                { id: 'confetti_bomb', name: 'Confetti Bomb', icon: '🎉', cost: 25, type: 'consumable', description: 'Triggers a confetti explosion on demand.' },
+            ].concat(
+                Object.keys(UI_THEMES).map(id => ({ id, ...UI_THEMES[id], type: 'theme' }))
+            ); // Themes
 
             const purchasedItems = JSON.parse(GM_getValue(STORAGE_KEYS.PURCHASED_ITEMS, '[]'));
             const equippedItem = GM_getValue(STORAGE_KEYS.EQUIPPED_ITEM, null);
@@ -4384,28 +4506,76 @@
                 const isEquipped = (item.type === 'accessory' && equippedItem === item.id) || (item.type === 'theme' && config.equippedTheme === item.id);
 
                 const itemDiv = document.createElement('div');
-                itemDiv.className = `tm-shop-item ${isOwned ? 'owned' : ''}`;
+                itemDiv.className = `tm-shop-item ${isOwned || (config.debugEnabled && item.type !== 'consumable') ? 'owned' : ''}`;
                 itemDiv.innerHTML = `
                     <div class="tm-shop-item-icon">${item.icon}</div>
                     <div class="tm-shop-item-name">${item.name}</div>
-                    <div class="tm-shop-item-cost">${isOwned ? 'Αγορασμένο' : `🪙 ${item.cost}`}</div>
+                    <div class="tm-shop-item-cost">${(isOwned && item.type !== 'consumable') ? 'Αγορασμένο' : (config.debugEnabled ? '🪙 0 (Free)' : `🪙 ${item.cost}`)}</div>
                     <button class="tm-shop-item-btn" data-item-id="${item.id}" data-item-cost="${item.cost}"></button>
                 `; // Removed data-item-type as it's on the item object
 
                 const button = itemDiv.querySelector('.tm-shop-item-btn');
-                if (isOwned) {
+                if (isOwned || (config.debugEnabled && item.type !== 'consumable')) {
                     button.textContent = isEquipped ? 'Εξοπλισμένο' : 'Εξόπλισε';
                     button.className += isEquipped ? ' equipped' : ' equip';
                     if (isEquipped) button.disabled = true;
                 } else {
-                    button.textContent = 'Αγόρασε';
+                    button.textContent = config.debugEnabled ? 'Get (Free)' : 'Αγόρασε';
                     button.className += ' buy';
-                    if (currentCoins < item.cost) button.disabled = true;
+                    if (!config.debugEnabled && currentCoins < item.cost) button.disabled = true;
                 }
 
                 itemDiv.querySelector('.tm-shop-item-btn').dataset.itemType = item.type;
                 shopContainer.appendChild(itemDiv);
             });
+        }
+
+        function handleShopPurchase(button) {
+            const itemId = button.dataset.itemId;
+            const itemCost = parseInt(button.dataset.itemCost, 10);
+            const itemType = button.dataset.itemType;
+
+            let currentCoins = GM_getValue(STORAGE_KEYS.USER_COINS, 0);
+            if (!config.debugEnabled && currentCoins < itemCost) {
+                alert('Δεν έχετε αρκετά Fixer-Coins!');
+                return;
+            }
+
+            if (!config.debugEnabled) {
+                currentCoins -= itemCost;
+                GM_setValue(STORAGE_KEYS.USER_COINS, currentCoins);
+                updateCoinBalanceUI(currentCoins);
+            }
+
+            if (itemType === 'consumable' && itemId === 'reroll_token') {
+                const currentTokens = GM_getValue(STORAGE_KEYS.USER_REROLL_TOKENS, 0);
+                GM_setValue(STORAGE_KEYS.USER_REROLL_TOKENS, currentTokens + 1);
+            } else if (itemType === 'consumable') {
+                // Handle immediate use of other consumables
+                switch (itemId) {
+                    case 'energized_drink':
+                        triggerEnergizedState(15 * 60 * 1000); // 15 minutes
+                        break;
+                    case 'double_coins_voucher':
+                        GM_setValue(STORAGE_KEYS.DOUBLE_COINS_BUFF_EXPIRES, Date.now() + (10 * 60 * 1000)); // 10 minutes
+                        showPositiveMessage('Double Coins active for 10 mins!');
+                        break;
+                    case 'happiness_snack':
+                        updatePetStats(100, 0); // Max out happiness
+                        setMascotState('happy', 3000);
+                        break;
+                    case 'confetti_bomb':
+                        triggerConfetti(200);
+                        break;
+                }
+            } else {
+                let purchased = JSON.parse(GM_getValue(STORAGE_KEYS.PURCHASED_ITEMS, '[]'));
+                if (!purchased.includes(itemId)) purchased.push(itemId);
+                GM_setValue(STORAGE_KEYS.PURCHASED_ITEMS, JSON.stringify(purchased));
+            }
+
+            showPositiveMessage('Αγορά επιτυχής!');
+            populateShop(); // Re-render the shop
         }
 
         function createSettingsModal() {
@@ -4428,6 +4598,8 @@
                                 <li><a href="#sec-levelup">Level-Up System</a></li>
                                 <li><a href="#sec-mascot">Mascot</a></li>
                                 <li><a href="#sec-talents">Talents</a></li>
+                                <li><a href="#sec-shop">🪙 Shop</a></li>
+                                <li style="display: none;" data-debug-only="true"><a href="#sec-debug">🔧 Debug</a></li>
                                 <li><a href="#sec-data">Data</a></li>
                             </ul>
                         </aside>
@@ -4440,13 +4612,15 @@
                             <section id="sec-levelup">${getLevelUpSettingsHTML()}</section>
                             <section id="sec-mascot">${getMascotSettingsHTML()}</section>
                             <section id="sec-talents">${getTalentsHTML()}</section>
+                            <!-- Shop is now a separate modal -->
+                            <section id="sec-debug">${getDebugSettingsHTML()}</section>
                             <section id="sec-data">${getDataManagementHTML()}</section>
-                            <div class="tm-modal-footer">
-                                <span id="tm-settings-feedback"></span>
-                                <button id="tm-settings-reset">Επαναφορά</button>
-                                <button id="tm-settings-save">Αποθήκευση Ρυθμίσεων</button>
-                            </div>
                         </main>
+                    </div>
+                    <div class="tm-modal-footer">
+                        <span id="tm-settings-feedback"></span>
+                        <button id="tm-settings-reset">Επαναφορά</button>
+                        <button id="tm-settings-save">Αποθήκευση Ρυθμίσεων</button>
                     </div>
                 </div>
             `;
@@ -4460,34 +4634,13 @@
             overlay.querySelector('#tm-export-data-btn')?.addEventListener('click', handleExportData);
             overlay.querySelector('#tm-import-data-btn')?.addEventListener('click', handleImportData);
 
-            // Talent unlock logic
-            overlay.querySelector('#tm-talents-grid')?.addEventListener('click', (e) => {
-                if (e.target.matches('.tm-talent-btn.unlockable')) {
-                    const button = e.target;
-                    const talentId = button.dataset.talentId;
-                    const talent = TALENT_TREE.find(t => t.id === talentId);
-
-                    if (talent) {
-                        let talentPoints = GM_getValue(STORAGE_KEYS.USER_TALENT_POINTS, 0);
-                        if (talentPoints >= talent.cost) {
-                            talentPoints -= talent.cost;
-                            GM_setValue(STORAGE_KEYS.USER_TALENT_POINTS, talentPoints);
-
-                            let unlockedTalents = JSON.parse(GM_getValue(STORAGE_KEYS.UNLOCKED_TALENTS, '[]'));
-                            unlockedTalents.push(talentId);
-                            GM_setValue(STORAGE_KEYS.UNLOCKED_TALENTS, JSON.stringify(unlockedTalents));
-
-                            // Re-render the talents section
-                            document.getElementById('sec-talents').innerHTML = getTalentsHTML();
-                        }
-                    }
-                }
-            });
-
             // Sidebar nav -> tabs
             try {
                 const links = overlay.querySelectorAll('.tm-settings-sidebar .tm-nav a');
                 const sections = overlay.querySelectorAll('.tm-settings-main section');
+                const debugTab = overlay.querySelector('[data-debug-only="true"]');
+                const shopLink = Array.from(links).find(a => a.getAttribute('href') === '#sec-shop');
+
                 function activate(id) {
                     sections.forEach(sec => sec.classList.toggle('active', '#' + sec.id === id));
                     links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === id));
@@ -4499,9 +4652,26 @@
                         activate(id);
                     });
                 });
+                // Special handling for shop
+                if (shopLink) {
+                    shopLink.addEventListener('click', (ev) => {
+                        ev.preventDefault(); showShopModal();
+                    });
+                }
+                // Special handling for debug tab
+                if (debugTab) {
+                    debugTab.style.display = config.debugEnabled ? 'block' : 'none';
+                }
                 // default active first
                 if (links.length) activate(links[0].getAttribute('href'));
             } catch(_) {}
+
+            // Talent unlock logic - Attach listener to the main content area for delegation
+            const settingsContent = overlay.querySelector('#tm-settings-content');
+            if (settingsContent) {
+                initDebugControls(); // Initialize debug button listeners
+                settingsContent.addEventListener('click', handleTalentUnlock);
+            }
 
             // --- Populate Checkboxes ---
             const populateCheckbox = (id, key) => {
@@ -4615,6 +4785,42 @@
             renderQuickSearchRows(); // Initial render
         }
 
+        function initDebugControls() {
+            if (!config.debugEnabled) return;
+
+            document.getElementById('tm-debug-set-level-btn')?.addEventListener('click', () => {
+                const newLevel = parseInt(document.getElementById('tm-debug-level-input').value, 10);
+                if (newLevel > 0) { GM_setValue(STORAGE_KEYS.USER_LEVEL, newLevel); GM_setValue(STORAGE_KEYS.USER_XP, 0); showPositiveMessage(`Level set to ${newLevel}.`); updateXpBarUI(newLevel, 0, getXpForLevel(newLevel)); }
+            });
+            document.getElementById('tm-debug-add-xp-btn')?.addEventListener('click', () => {
+                const xpToAdd = parseInt(document.getElementById('tm-debug-xp-input').value, 10); if (xpToAdd) grantXp(xpToAdd);
+            });
+            document.getElementById('tm-debug-add-coins-btn')?.addEventListener('click', () => {
+                const coinsToAdd = parseInt(document.getElementById('tm-debug-coins-input').value, 10); if (coinsToAdd) grantCoins(coinsToAdd);
+            });
+        }
+        function handleTalentUnlock(e) {
+            if (!e.target.matches('.tm-talent-btn.unlockable')) return;
+
+            const button = e.target;
+            const talentId = button.dataset.talentId;
+            const talent = TALENT_TREE.find(t => t.id === talentId);
+
+            if (talent) {
+                let talentPoints = GM_getValue(STORAGE_KEYS.USER_TALENT_POINTS, 0);
+                if (talentPoints >= talent.cost) {
+                    talentPoints -= talent.cost;
+                    GM_setValue(STORAGE_KEYS.USER_TALENT_POINTS, talentPoints);
+
+                    let unlockedTalents = JSON.parse(GM_getValue(STORAGE_KEYS.UNLOCKED_TALENTS, '[]'));
+                    unlockedTalents.push(talentId);
+                    GM_setValue(STORAGE_KEYS.UNLOCKED_TALENTS, JSON.stringify(unlockedTalents));
+
+                    // Re-render the talents section
+                    document.getElementById('sec-talents').innerHTML = getTalentsHTML();
+                }
+            }
+        }
         function addSettingsButton() {
             // --- Notification Bell ---
             const bellWrapper = document.createElement('div');
@@ -5590,7 +5796,7 @@
         // --- "Send to Scratchpad" Integration ---
         window.sendToScratchpad = (text, sourceUrl = null) => {
             // Ensure scratchpad is open
-            if (container.style.display === 'none') {
+            if (container.style.display !== 'flex') {
                 toggleButton.click();
             }
             // Add source link if provided
@@ -5803,7 +6009,7 @@
         const isOrderListPage = pathname.includes('srvorders_list.php') || pathname.includes('sparepartstoorder_list.php');
         const isRecordAdded = urlParams.get('a') === 'added';
 
-        if (isOrderListPage && isRecordAdded) {
+            if (config.levelUpSystemEnabled && isOrderListPage && isRecordAdded) {
             // Use sessionStorage to prevent re-tracking on reload within the same tab session.
             const trackedKey = `tm_tracked_add_${pathname}`;
             if (!sessionStorage.getItem(trackedKey)) {
@@ -5832,7 +6038,7 @@
                     button.addEventListener('click', () => {
                         // A small delay to let the page's own logic run before we track.
                         setTimeout(() => {
-                            console.log(`[MMS] Status change button clicked: "${button.innerText}". Granting XP.`);
+                            console.log(`[MMS] Status change button clicked: "${button.innerText}".`);
                             trackDailyStat('statusChanges'); // Grant XP for any status change.
 
                             // Special rewards for completing a repair
@@ -6396,15 +6602,22 @@
     let isRoaming = false;
     let roamingTimeout = null;
     let playfulTimeout = null;
-    let petStats = { happiness: 100, hunger: 100, lastUpdate: Date.now() }; // happiness, hunger, lastUpdate
+    let petStats = { happiness: 100, hunger: 100, lastUpdate: Date.now() };
 
     function stopRoaming() {
         if (roamingTimeout) clearTimeout(roamingTimeout);
         if (playfulTimeout) clearTimeout(playfulTimeout);
-        // Cancel any ongoing Web Animation
-        document.getElementById('tm-mascot-container')?.getAnimations().forEach(anim => anim.cancel());
-        roamingTimeout = null;
+
         const mascotContainer = document.getElementById('tm-mascot-container');
+        if (mascotContainer) {
+            // Get the current computed transform matrix
+            const computedStyle = window.getComputedStyle(mascotContainer);
+            mascotContainer.style.transform = computedStyle.transform;
+            // Now cancel the animation. The element will keep its computed style.
+            mascotContainer.getAnimations().forEach(anim => anim.cancel());
+        }
+
+        roamingTimeout = null;
         isRoaming = false;
     }
 
@@ -6496,6 +6709,9 @@
             const controlY = midY + dx * bulge;
 
             // 2. Define the animation keyframes for a curved path.
+            // CRITICAL: Clear the inline transform style before starting a new animation
+            // to prevent conflicts between the old position and the new animation's start frame.
+            mascotContainer.style.transform = '';
             const keyframes = [
                 { transform: `translate(${currentX}px, ${currentY}px)` }, // Start
                 { transform: `translate(${controlX}px, ${controlY}px)`, offset: 0.5 }, // Mid-point (curve)
@@ -6849,7 +7065,7 @@
         // --- Pet Interaction Logic ---
         // This flag prevents the mascot from immediately roaming when the panel is closed.
         let justClosedPanel = false;
-
+ 
         container.addEventListener('click', (e) => {
             // Ignore clicks on the panel's buttons
             if (e.target.closest('button')) return;
