@@ -327,7 +327,10 @@
             usernameInput.value = passwordInput.value = storeIdInput.value = greetingInput.value = '';
         });
 
-        settingsBtn.addEventListener('click', () => panel.classList.toggle('visible'));
+        settingsBtn.addEventListener('click', (e) => {
+            e.preventDefault(); // Prevent the button from submitting the form
+            panel.classList.toggle('visible');
+        });
 
         renderUsers();
     }
@@ -1248,6 +1251,7 @@
         mascotRoamingSpeed: 100,
         automatedPartsSearchEnabled: true,
     };
+    DEFAULTS.customLoginPageEnabled = true; // Added separately to avoid merge conflicts
 
     const UI_THEMES = {
         'default': { name: 'Default', icon: '🎨', cost: 0, colors: DEFAULTS.defaultThemeColors },
@@ -3870,6 +3874,7 @@
             };
 
             // --- Save General UI Settings ---
+            saveCheckbox('tm-setting-login-page-enabled', 'customLoginPageEnabled');
             saveCheckbox('tm-setting-dashboard-enabled', 'dashboardWidgetEnabled');
             saveCheckbox('tm-setting-scroll-top-enabled', 'scrollToTopEnabled');
             saveCheckbox('tm-setting-tech-stats-enabled', 'technicianStatsEnabled');
@@ -3975,6 +3980,14 @@
         function getGeneralUISettingsHTML() {
             return `
                 <div class="tm-settings-section">
+                    <h3>Login Page</h3>
+                    <div class="tm-setting-row">
+                        <div class="tm-setting-label">
+                            <label for="tm-setting-login-page-enabled">Enable Custom Login Page</label>
+                            <p class="tm-setting-description">Replaces the default login page with a minimalist, quick-login version.</p>
+                        </div>
+                        <div class="tm-setting-control"><input type="checkbox" id="tm-setting-login-page-enabled"></div>
+                    </div>
                     <h3>Γενικές Ρυθμίσεις UI</h3>
                     <div class="tm-setting-row">
                         <div class="tm-setting-label"><label for="tm-setting-dashboard-enabled">Εμφάνιση Widget "Σήμερα"</label></div>
@@ -4495,6 +4508,7 @@
                 const checkbox = document.getElementById(id);
                 if (checkbox) checkbox.checked = config[key];
             };
+            populateCheckbox('tm-setting-login-page-enabled', 'customLoginPageEnabled');
             populateCheckbox('tm-setting-dashboard-enabled', 'dashboardWidgetEnabled');
             populateCheckbox('tm-setting-scroll-top-enabled', 'scrollToTopEnabled');
             populateCheckbox('tm-setting-tech-stats-enabled', 'technicianStatsEnabled');
@@ -7318,18 +7332,19 @@
     // === 8. SCRIPT INITIALIZER
     // ===================================================================
     window.addEventListener('load', () => {
+        // Load settings first, as they determine which features to run.
+        loadSettings();
+
         try {
-            if (window.location.pathname.includes('/login.php')) {
+            // Check if we are on the login page AND the feature is enabled.
+            if (config.customLoginPageEnabled && window.location.pathname.includes('/login.php')) {
                 initLoginPage();
                 return; // Stop the rest of the script on the login page
             }
         } catch (e) { /* ignore */ }
 
-
         // Apply theme first, so all subsequent UI elements get the right colors
         applyTheme(GM_getValue(STORAGE_KEYS.EQUIPPED_THEME, 'default'));
-
-        loadSettings();
         addGlobalStyles();
 
         // Create a shared container for bottom controls
