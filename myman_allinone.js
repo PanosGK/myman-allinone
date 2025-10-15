@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @updateURL    https://raw.githubusercontent.com/PanosGK/myman-allinone/main/myman_allinone.js
 // @downloadURL  https://raw.githubusercontent.com/PanosGK/myman-allinone/main/myman_allinone.js
-// @version      115
+// @version      116
 // @description  An all-in-one suite for mymanager.gr, combining Advanced Search, Auto-Refresh, Quick Navigation, a Dashboard, and more.
 // @description  Συνδυάζει λειτουργίες Αναζήτησης, Αυτόματης Ανανέωσης και Γρήγορης Πλοήγησης για το mymanager.gr.
 // @author       Gkorogias - Gemini AI - Chat GPT
@@ -72,6 +72,27 @@
             #minimal-username-input:focus {
                 border-color: #00aaff;
                 box-shadow: 0 0 15px rgba(0, 170, 255, 0.6);
+            }
+            #minimal-store-selector {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 15px;
+                justify-content: center;
+                margin-top: 20px;
+            }
+            .minimal-store-btn {
+                background: rgba(0, 0, 0, 0.4);
+                border: 1px solid rgba(255, 255, 255, 0.5);
+                color: white;
+                padding: 15px 30px;
+                font-size: 1.2rem;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }
+            .minimal-store-btn:hover {
+                background: rgba(0, 170, 255, 0.6);
+                border-color: #00aaff;
             }
             /* Use mascot styles already defined in the script */
             #tm-mascot-container {
@@ -172,7 +193,7 @@
                 background: #ffffff;
                 color: #495057;
                 box-sizing: border-box;
-                font-size: 1rem;
+                font-size: 1rem; font-family: monospace;
                 transition: border-color 0.2s, box-shadow 0.2s;
             }
             #login-settings-panel input:focus {
@@ -201,6 +222,7 @@
         minimalContainer.innerHTML = `
             <h1>Who are you?</h1>
             <input type="text" id="minimal-username-input" placeholder="Enter your username" autocomplete="off">
+            <div id="minimal-store-selector" style="display: none;"></div>
             <button id="login-settings-btn" title="Manage Users">&#9881;</button>
         `;
         // Insert our new UI before the hidden original form
@@ -213,11 +235,14 @@
 
         // 4. Logic to handle username input
         const usernameInput = document.getElementById('minimal-username-input');
+        const storeSelector = document.getElementById('minimal-store-selector');
+        const titleHeader = minimalContainer.querySelector('h1');
+
         usernameInput.addEventListener('input', debounce(() => {
             const username = usernameInput.value.trim().toLowerCase();
             const credentials = USER_CREDENTIALS[username];
 
-            if (credentials) {
+            if (credentials && credentials.stores && credentials.stores.length > 0) {
                 // A known user is found!
                 const mascotContainer = document.getElementById('tm-mascot-container');
                 if (mascotContainer) {
@@ -226,13 +251,29 @@
                     showMascotBubble(credentials.mascotGreeting, 4000);
                 }
 
-                // Automatically fill the hidden form and submit after a short delay
-                setTimeout(() => {
-                    document.getElementById('username').value = username;
-                    document.getElementById('password').value = credentials.password;
-                    document.getElementById('iProfileID').value = credentials.storeId;
-                    document.getElementById('form1').submit();
-                }, 1500); // 1.5 second delay to see the mascot's greeting
+                // Hide username input and show store selector
+                usernameInput.style.display = 'none';
+                titleHeader.textContent = 'Select a Store';
+
+                storeSelector.innerHTML = ''; // Clear previous buttons
+                credentials.stores.forEach(store => {
+                    const storeBtn = document.createElement('button');
+                    storeBtn.className = 'minimal-store-btn';
+                    storeBtn.textContent = store.name;
+                    storeBtn.dataset.storeId = store.id;
+                    storeSelector.appendChild(storeBtn);
+
+                    storeBtn.addEventListener('click', () => {
+                        // On store selection, fill form and submit
+                        document.getElementById('username').value = username;
+                        document.getElementById('password').value = credentials.password;
+                        document.getElementById('iProfileID').value = store.id;
+                        document.getElementById('form1').submit();
+                    });
+                });
+
+                storeSelector.style.display = 'flex';
+
             }
         }, 500)); // Wait 500ms after user stops typing
 
@@ -249,10 +290,13 @@
         panel.innerHTML = `
             <h2>Manage Users</h2>
             <div id="login-users-list"></div>
-            <h3>Add / Edit User</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>Add / Edit User</h3>
+                <button id="fetch-stores-btn" style="padding: 5px 10px; font-size: 12px; cursor: pointer;">Fetch Stores</button>
+            </div>
             <input type="text" id="login-username" placeholder="Username (e.g., 'alex')">
             <input type="password" id="login-password" placeholder="Password">
-            <input type="text" id="login-storeid" placeholder="Store ID (e.g., '3300000')">
+            <textarea id="login-stores" placeholder="Store Name 1:12345&#10;Store Name 2:67890" rows="4" style="font-family: monospace;"></textarea>
             <input type="text" id="login-greeting" placeholder="Mascot Greeting (Optional)">
             <button id="save-login-user-btn">Save User</button>
         `;
@@ -263,8 +307,9 @@
         const saveBtn = document.getElementById('save-login-user-btn');
         const usernameInput = document.getElementById('login-username');
         const passwordInput = document.getElementById('login-password');
-        const storeIdInput = document.getElementById('login-storeid');
+        const storesTextarea = document.getElementById('login-stores');
         const greetingInput = document.getElementById('login-greeting');
+        const fetchStoresBtn = document.getElementById('fetch-stores-btn');
 
         let users = { ...initialUsers };
 
@@ -298,7 +343,13 @@
                 const userData = users[userToEdit];
                 usernameInput.value = userToEdit;
                 passwordInput.value = userData.password;
-                storeIdInput.value = userData.storeId;
+                if (userData.stores) {
+                    storesTextarea.value = userData.stores.map(s => `${s.name}:${s.id}`).join('\n');
+                } else if (userData.storeId) { // Backward compatibility
+                    storesTextarea.value = `Default Store:${userData.storeId}`;
+                } else {
+                    storesTextarea.value = '';
+                }
                 greetingInput.value = userData.mascotGreeting || '';
             }
         });
@@ -306,17 +357,25 @@
         saveBtn.addEventListener('click', () => {
             const username = usernameInput.value.trim().toLowerCase();
             const password = passwordInput.value.trim();
-            const storeId = storeIdInput.value.trim();
+            const storesRaw = storesTextarea.value.trim();
             const greeting = greetingInput.value.trim();
 
-            if (!username || !password || !storeId) {
-                alert('Please fill in Username, Password, and Store ID.');
+            const stores = storesRaw.split('\n').map(line => {
+                const parts = line.split(':');
+                if (parts.length === 2 && parts[0].trim() && parts[1].trim()) {
+                    return { name: parts[0].trim(), id: parts[1].trim() };
+                }
+                return null;
+            }).filter(Boolean);
+
+            if (!username || !password || stores.length === 0) {
+                alert('Please fill in Username, Password, and at least one Store in the correct format (Name:ID).');
                 return;
             }
 
             users[username] = {
                 password: password,
-                storeId: storeId,
+                stores: stores,
                 mascotGreeting: greeting || `Welcome back, ${username.charAt(0).toUpperCase() + username.slice(1)}!`
             };
 
@@ -324,7 +383,38 @@
             alert(`User '${username}' saved!`);
             renderUsers();
             // Clear form
-            usernameInput.value = passwordInput.value = storeIdInput.value = greetingInput.value = '';
+            usernameInput.value = passwordInput.value = storesTextarea.value = greetingInput.value = '';
+        });
+
+        fetchStoresBtn.addEventListener('click', () => {
+            const storeSelect = document.getElementById('iProfileID');
+            if (!storeSelect) {
+                alert('Could not find the original store selector on the page.');
+                return;
+            }
+
+            const availableStores = Array.from(storeSelect.options)
+                .filter(opt => opt.value && opt.text)
+                .map(opt => ({ name: opt.text, id: opt.value }));
+
+            if (availableStores.length === 0) {
+                alert('No stores found in the original login form.');
+                return;
+            }
+
+            // Create a dropdown to let the user pick a store to add
+            const pickerContainer = document.createElement('div');
+            pickerContainer.style.marginTop = '10px';
+            const selectEl = document.createElement('select');
+            selectEl.innerHTML = `<option value="">-- Select a store to add --</option>` + availableStores.map(s => `<option value="${s.name}:${s.id}">${s.name}</option>`).join('');
+            selectEl.style.width = '100%';
+            selectEl.style.padding = '8px';
+            selectEl.onchange = (e) => {
+                if (e.target.value) {
+                    storesTextarea.value += (storesTextarea.value ? '\n' : '') + e.target.value;
+                }
+            };
+            fetchStoresBtn.insertAdjacentElement('afterend', selectEl);
         });
 
         settingsBtn.addEventListener('click', (e) => {
@@ -1475,6 +1565,10 @@
                 background-color: var(--tm-info-hover);
                 transform: translateY(-2px);
             }
+            .tm-data-btn.reset { background-color: var(--tm-danger-color); }
+            .tm-data-btn.reset:hover {
+                background-color: var(--tm-danger-hover);
+            }
 
 
 
@@ -1578,7 +1672,12 @@
                 text-align: center;
             }
             /* Settings layout as panel with sidebar */
-            .tm-settings-layout { display: flex; gap: 16px; }
+            .tm-settings-layout {
+                display: flex;
+                gap: 16px;
+                flex-grow: 1; /* Allow this layout to fill the space */
+                overflow: hidden; /* Prevent this container from scrolling */
+            }
             .tm-settings-sidebar { width: 220px; border-right: 1px solid #eee; padding-right: 12px; }
             .tm-settings-sidebar .tm-nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
             .tm-settings-sidebar .tm-nav a { text-decoration: none; color: #333; font-weight: 600; border-radius: 6px; padding: 8px 10px; display: block; background: #f8f9fa; }
@@ -3388,13 +3487,15 @@
 
             container.appendChild(button);
 
-            // Add Daily Bounties button (Feature is not yet implemented)
-            const questsButton = document.createElement('button');
-            questsButton.id = 'tm-quests-btn';
-            questsButton.className = 'tm-slide-out-btn';
-            questsButton.innerHTML = '📜 Daily Bounties';
-            questsButton.addEventListener('click', showQuestsModal);
-            container.appendChild(questsButton);
+            if (config.levelUpSystemEnabled) {
+                // Add Daily Bounties button
+                const questsButton = document.createElement('button');
+                questsButton.id = 'tm-quests-btn';
+                questsButton.className = 'tm-slide-out-btn';
+                questsButton.innerHTML = '📜 Daily Bounties';
+                questsButton.addEventListener('click', showQuestsModal);
+                container.appendChild(questsButton);
+            }
 
             // Add Technician Stats button if on the correct page
             // This function is called on 'window.load', so the DOM is already ready.
@@ -4178,6 +4279,7 @@
                             <button class="tm-shop-tab active" data-category="themes">🎨 Themes</button>
                             <button class="tm-shop-tab" data-category="accessories">🎩 Accessories</button>
                             <button class="tm-shop-tab" data-category="consumables">⚡ Consumables</button>
+                            <button class="tm-shop-tab" data-category="customization">🤖 Customization</button>
                         </div>
                     </div>
                 </div>
@@ -4204,7 +4306,7 @@
             });
 
             // --- Shop Logic ---
-            overlay.querySelector('#tm-shop-container')?.addEventListener('click', (e) => {
+            overlay.querySelector('#tm-shop-content-container')?.addEventListener('click', (e) => {
                 if (e.target.matches('.tm-shop-item-btn')) {
                     if (e.target.classList.contains('buy')) {
                         handleShopPurchase(e.target); // This function is already defined and handles purchases
@@ -4443,10 +4545,17 @@
             return `
                 <div class="tm-settings-section">
                     <h3>💾 Διαχείριση Δεδομένων</h3>
-                    <p class="tm-setting-description">Εξάγετε την πρόοδό σας (levels, coins, ρυθμίσεις, κ.λπ.) σε ένα αρχείο για backup ή για μεταφορά σε άλλο browser. Η εισαγωγή θα αντικαταστήσει τα τρέχοντα δεδομένα.</p>
+                    <p class="tm-setting-description">Εξαγωγή της προόδου σας (levels, coins, ρυθμίσεις) σε αρχείο για backup ή μεταφορά. Η εισαγωγή αντικαθιστά τα τρέχοντα δεδομένα.</p>
                     <div class="tm-data-actions">
-                        <button id="tm-export-data-btn" class="tm-data-btn export">Export Data</button>
-                        <button id="tm-import-data-btn" class="tm-data-btn import">Import Data</button>
+                        <button id="tm-export-data-btn" class="tm-data-btn export">Εξαγωγή Δεδομένων</button>
+                        <button id="tm-import-data-btn" class="tm-data-btn import">Εισαγωγή Δεδομένων</button>
+                    </div>
+                </div>
+                <div class="tm-settings-section" style="border-top: 2px solid var(--tm-danger-color); margin-top: 20px; padding-top: 20px;">
+                    <h3 style="color: var(--tm-danger-color);">💀 Ζώνη Κινδύνου</h3>
+                    <p class="tm-setting-description">Αυτή η ενέργεια θα διαγράψει οριστικά όλη την πρόοδο, τις ρυθμίσεις και τα αγορασμένα αντικείμενα. Η ενέργεια αυτή δεν αναιρείται.</p>
+                    <div class="tm-data-actions" style="margin-top: 15px;">
+                         <button id="tm-settings-reset" class="tm-data-btn reset">Επαναφορά Όλων</button>
                     </div>
                 </div>
             `;
@@ -4501,7 +4610,7 @@
                             throw new Error('Μη έγκυρη μορφή αρχείου backup.');
                         }
 
-                        if (!confirm('Are you sure you want to import this data? All current progress and settings will be overwritten.')) {
+                        if (!confirm('Είστε σίγουροι ότι θέλετε να εισάγετε αυτά τα δεδομένα; Όλη η τρέχουσα πρόοδος και οι ρυθμίσεις θα αντικατασταθούν.')) {
                             return;
                         }
 
@@ -4532,7 +4641,8 @@
             const categories = {
                 themes: [],
                 accessories: [],
-                consumables: []
+                consumables: [],
+                customization: []
             };
 
             // Sort all items into categories
@@ -4543,7 +4653,8 @@
                 { id: 'rainy_day_umbrella', name: 'Rainy Day Umbrella', icon: '☂️', cost: 350, type: 'accessory' },
                 { id: 'bookworm_kit', name: 'Bookworm Kit', icon: '📚', cost: 300, type: 'accessory' },
                 { id: 'stunt_bike', name: 'Stunt Bike', icon: '🚲', cost: 750, type: 'accessory' },
-                { id: 'juggling_balls', name: 'Juggling Balls', icon: '🤹', cost: 400, type: 'accessory' }
+                { id: 'juggling_balls', name: 'Juggling Balls', icon: '🤹', cost: 400, type: 'accessory' },
+                { id: 'master_crown', name: 'Master\'s Crown', icon: '👑', cost: 10000, type: 'accessory' }
             );
             categories.consumables.push(
                 { id: 'reroll_token', name: 'Bounty Reroll Token', icon: '🔄', cost: 100, type: 'consumable' },
@@ -4551,6 +4662,14 @@
                 { id: 'double_coins_voucher', name: 'Double Coins Voucher', icon: '💰', cost: 200, type: 'consumable' },
                 { id: 'happiness_snack', name: 'Happiness Snack', icon: '💖', cost: 50, type: 'consumable' },
                 { id: 'confetti_bomb', name: 'Confetti Bomb', icon: '🎉', cost: 25, type: 'consumable' }
+            );
+
+            // Add mascot parts to the customization category
+            categories.customization.push(
+                { id: 'tm-mascot-evo1', name: 'Evo-1 Chassis', icon: '🤖', cost: 1000, type: 'customization' },
+                { id: 'tm-mascot-evo2', name: 'Evo-2 Chassis', icon: '🤖', cost: 2500, type: 'customization' },
+                { id: 'tm-mascot-evo3', name: 'Evo-3 Chassis', icon: '🤖', cost: 5000, type: 'customization' },
+                { id: 'tm-mascot-evo4', name: 'Evo-4 Chassis', icon: '🤖', cost: 15000, type: 'customization' }
             );
 
             const purchasedItems = JSON.parse(GM_getValue(STORAGE_KEYS.PURCHASED_ITEMS, '[]'));
@@ -4567,7 +4686,7 @@
                 if (category === 'themes') categoryContent.classList.add('active'); // Make first tab active
 
                 const shopGrid = document.createElement('div');
-                shopGrid.id = 'tm-shop-container'; // Keep the ID for the event listener
+                shopGrid.className = 'tm-shop-grid'; // Use a class instead of a duplicate ID
 
                 categories[category].forEach(item => {
                     const isOwned = purchasedItems.includes(item.id);
@@ -4680,8 +4799,7 @@
                     </div>
                     <div class="tm-modal-footer">
                         <span id="tm-settings-feedback"></span>
-                        <button id="tm-settings-reset">Επαναφορά</button>
-                        <button id="tm-settings-save">Αποθήκευση Ρυθμίσεων</button>
+                        <button id="tm-settings-save">Αποθήκευση & Επαναφόρτωση</button>
                     </div>
                 </div>
             `;
@@ -4690,8 +4808,8 @@
             // Event Listeners
             overlay.querySelector('.tm-modal-close').addEventListener('click', () => overlay.remove());
             overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-            overlay.querySelector('#tm-settings-save').addEventListener('click', saveSettings);
-            overlay.querySelector('#tm-settings-reset').addEventListener('click', resetSettings);
+            overlay.querySelector('#tm-settings-save')?.addEventListener('click', saveSettings);
+            overlay.querySelector('#tm-settings-reset')?.addEventListener('click', resetSettings);
             overlay.querySelector('#tm-export-data-btn')?.addEventListener('click', handleExportData);
             overlay.querySelector('#tm-import-data-btn')?.addEventListener('click', handleImportData);
 
@@ -4878,18 +4996,20 @@
         }
         function addSettingsButton() {
             // --- Notification Bell ---
-            const bellWrapper = document.createElement('div');
-            bellWrapper.id = 'tm-notification-bell-wrapper';
-            bellWrapper.innerHTML = `
-                <button id="tm-notification-bell-btn" title="Notifications">🔔</button>
-                <span id="tm-notification-unread-count">0</span>
-            `;
-            parentContainer.appendChild(bellWrapper);
-            bellWrapper.querySelector('#tm-notification-bell-btn').addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent the outside click listener from firing immediately
-                toggleNotificationPanel();
-            });
-            updateNotificationBadge(); // Initial check
+            if (config.levelUpSystemEnabled) {
+                const bellWrapper = document.createElement('div');
+                bellWrapper.id = 'tm-notification-bell-wrapper';
+                bellWrapper.innerHTML = `
+                    <button id="tm-notification-bell-btn" title="Notifications">🔔</button>
+                    <span id="tm-notification-unread-count">0</span>
+                `;
+                parentContainer.appendChild(bellWrapper);
+                bellWrapper.querySelector('#tm-notification-bell-btn').addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent the outside click listener from firing immediately
+                    toggleNotificationPanel();
+                });
+                updateNotificationBadge(); // Initial check
+            }
 
             const button = document.createElement('button');
             button.id = 'tm-settings-btn';
