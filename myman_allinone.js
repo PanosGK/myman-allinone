@@ -3,10 +3,10 @@
 // @namespace    http://tampermonkey.net/
 // @updateURL    https://raw.githubusercontent.com/PanosGK/myman-allinone/refs/heads/main/myman_allinone.js
 // @downloadURL  https://raw.githubusercontent.com/PanosGK/myman-allinone/refs/heads/main/myman_allinone.js
-// @version      27
+// @version      98
 // @description  An all-in-one suite for mymanager.gr, combining Advanced Search, Auto-Refresh, Quick Navigation, a Dashboard, and more.
 // @description  Συνδυάζει λειτουργίες Αναζήτησης, Αυτόματης Ανανέωσης και Γρήγορης Πλοήγησης για το mymanager.gr.
-// @author       Gkorogias - Gemini AI - Chat GPT sd
+// @author       Gkorogias - Gemini AI - Chat GPT
 // @match        *://thefixers.mymanager.gr/*
 // @grant        GM_addStyle
 // @grant        GM_getValue
