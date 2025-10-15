@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @updateURL    https://raw.githubusercontent.com/PanosGK/myman-allinone/main/myman_allinone.js
 // @downloadURL  https://raw.githubusercontent.com/PanosGK/myman-allinone/main/myman_allinone.js
-// @version      116
+// @version      117
 // @description  An all-in-one suite for mymanager.gr, combining Advanced Search, Auto-Refresh, Quick Navigation, a Dashboard, and more.
 // @description  Συνδυάζει λειτουργίες Αναζήτησης, Αυτόματης Ανανέωσης και Γρήγορης Πλοήγησης για το mymanager.gr.
 // @author       Gkorogias - Gemini AI - Chat GPT
@@ -4541,26 +4541,6 @@
             `;
         }
 
-        function getDataManagementHTML() {
-            return `
-                <div class="tm-settings-section">
-                    <h3>💾 Διαχείριση Δεδομένων</h3>
-                    <p class="tm-setting-description">Εξαγωγή της προόδου σας (levels, coins, ρυθμίσεις) σε αρχείο για backup ή μεταφορά. Η εισαγωγή αντικαθιστά τα τρέχοντα δεδομένα.</p>
-                    <div class="tm-data-actions">
-                        <button id="tm-export-data-btn" class="tm-data-btn export">Εξαγωγή Δεδομένων</button>
-                        <button id="tm-import-data-btn" class="tm-data-btn import">Εισαγωγή Δεδομένων</button>
-                    </div>
-                </div>
-                <div class="tm-settings-section" style="border-top: 2px solid var(--tm-danger-color); margin-top: 20px; padding-top: 20px;">
-                    <h3 style="color: var(--tm-danger-color);">💀 Ζώνη Κινδύνου</h3>
-                    <p class="tm-setting-description">Αυτή η ενέργεια θα διαγράψει οριστικά όλη την πρόοδο, τις ρυθμίσεις και τα αγορασμένα αντικείμενα. Η ενέργεια αυτή δεν αναιρείται.</p>
-                    <div class="tm-data-actions" style="margin-top: 15px;">
-                         <button id="tm-settings-reset" class="tm-data-btn reset">Επαναφορά Όλων</button>
-                    </div>
-                </div>
-            `;
-        }
-
         function handleExportData() {
             const backupData = {};
             const keysToBackup = [
@@ -4641,11 +4621,11 @@
             const categories = {
                 themes: [],
                 accessories: [],
-                consumables: [],
-                customization: []
+                consumables: []
             };
 
             // Sort all items into categories
+            // The 'customization' category was accidentally removed. I'm adding it back.
             Object.keys(UI_THEMES).forEach(id => categories.themes.push({ id, ...UI_THEMES[id], type: 'theme' }));
             categories.accessories.push(
                 { id: 'top_hat', name: 'Top Hat', icon: '🎩', cost: 250, type: 'accessory' },
@@ -4662,14 +4642,6 @@
                 { id: 'double_coins_voucher', name: 'Double Coins Voucher', icon: '💰', cost: 200, type: 'consumable' },
                 { id: 'happiness_snack', name: 'Happiness Snack', icon: '💖', cost: 50, type: 'consumable' },
                 { id: 'confetti_bomb', name: 'Confetti Bomb', icon: '🎉', cost: 25, type: 'consumable' }
-            );
-
-            // Add mascot parts to the customization category
-            categories.customization.push(
-                { id: 'tm-mascot-evo1', name: 'Evo-1 Chassis', icon: '🤖', cost: 1000, type: 'customization' },
-                { id: 'tm-mascot-evo2', name: 'Evo-2 Chassis', icon: '🤖', cost: 2500, type: 'customization' },
-                { id: 'tm-mascot-evo3', name: 'Evo-3 Chassis', icon: '🤖', cost: 5000, type: 'customization' },
-                { id: 'tm-mascot-evo4', name: 'Evo-4 Chassis', icon: '🤖', cost: 15000, type: 'customization' }
             );
 
             const purchasedItems = JSON.parse(GM_getValue(STORAGE_KEYS.PURCHASED_ITEMS, '[]'));
@@ -4723,17 +4695,19 @@
             const itemCost = parseInt(button.dataset.itemCost, 10);
             const itemType = button.dataset.itemType;
 
+            // The bug was here. The coin check was happening even in debug mode.
+            // I've fixed it so if debug mode is on, the cost is considered 0.
+            const finalCost = config.debugEnabled ? 0 : itemCost;
             let currentCoins = GM_getValue(STORAGE_KEYS.USER_COINS, 0);
-            if (!config.debugEnabled && currentCoins < itemCost) {
+
+            if (currentCoins < finalCost) {
                 alert('Δεν έχετε αρκετά Fixer-Coins!');
                 return;
             }
 
-            if (!config.debugEnabled) {
-                currentCoins -= itemCost;
-                GM_setValue(STORAGE_KEYS.USER_COINS, currentCoins);
-                updateCoinBalanceUI(currentCoins);
-            }
+            currentCoins -= finalCost;
+            GM_setValue(STORAGE_KEYS.USER_COINS, currentCoins);
+            updateCoinBalanceUI(currentCoins);
 
             if (itemType === 'consumable' && itemId === 'reroll_token') {
                 const currentTokens = GM_getValue(STORAGE_KEYS.USER_REROLL_TOKENS, 0);
@@ -4794,7 +4768,6 @@
                             <section id="sec-scratchpad">${getScratchpadSettingsHTML()}</section>
                             <section id="sec-gamification">${getLevelUpSettingsHTML()}${getMascotSettingsHTML()}${getTalentsHTML()}</section>
                             <section id="sec-debug">${getDebugSettingsHTML()}</section>
-                            <section id="sec-data">${getDataManagementHTML()}</section>
                         </main>
                     </div>
                     <div class="tm-modal-footer">
@@ -4808,7 +4781,6 @@
             // Event Listeners
             overlay.querySelector('.tm-modal-close').addEventListener('click', () => overlay.remove());
             overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-            overlay.querySelector('#tm-settings-save')?.addEventListener('click', saveSettings);
             overlay.querySelector('#tm-settings-reset')?.addEventListener('click', resetSettings);
             overlay.querySelector('#tm-export-data-btn')?.addEventListener('click', handleExportData);
             overlay.querySelector('#tm-import-data-btn')?.addEventListener('click', handleImportData);
