@@ -3,11 +3,12 @@
 // @namespace    http://tampermonkey.net/
 // @updateURL    https://raw.githubusercontent.com/PanosGK/myman-allinone/main/myman_allinone.js
 // @downloadURL  https://raw.githubusercontent.com/PanosGK/myman-allinone/main/myman_allinone.js
-// @version      118
+// @version      120
 // @description  An all-in-one suite for mymanager.gr, combining Advanced Search, Auto-Refresh, Quick Navigation, a Dashboard, and more.
 // @description  Συνδυάζει λειτουργίες Αναζήτησης, Αυτόματης Ανανέωσης και Γρήγορης Πλοήγησης για το mymanager.gr.
 // @author       Gkorogias - Gemini AI - Chat GPT
 // @match        *://thefixers.mymanager.gr/*
+// @match        *://127.0.0.1:*/*
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -403,6 +404,11 @@
             }
 
             // Create a dropdown to let the user pick a store to add
+            const existingPicker = document.getElementById('tm-login-store-picker');
+            if (existingPicker) {
+                existingPicker.remove();
+            }
+
             const pickerContainer = document.createElement('div');
             pickerContainer.style.marginTop = '10px';
             const selectEl = document.createElement('select');
@@ -414,7 +420,9 @@
                     storesTextarea.value += (storesTextarea.value ? '\n' : '') + e.target.value;
                 }
             };
-            fetchStoresBtn.insertAdjacentElement('afterend', selectEl);
+            pickerContainer.id = 'tm-login-store-picker';
+            pickerContainer.appendChild(selectEl);
+            fetchStoresBtn.insertAdjacentElement('afterend', pickerContainer);
         });
 
         settingsBtn.addEventListener('click', (e) => {
@@ -868,41 +876,40 @@
         let currentXp = config.levelUpSystemEnabled ? GM_getValue(STORAGE_KEYS.USER_XP, 0) : 0;
         let currentLevel = GM_getValue(STORAGE_KEYS.USER_LEVEL, 1);
 
-        // --- Apply Talent Bonuses ---
+        // --- Apply Talent Bonuses & Buffs ---
         const unlockedTalents = JSON.parse(GM_getValue(STORAGE_KEYS.UNLOCKED_TALENTS, '[]'));
-        let talentMultiplier = 1.0; // Start with a base multiplier of 1
-        // Find if any talent modifies the XP for the current action
+        let talentMultiplier = 1.0;
         const relevantTalent = TALENT_TREE.find(t => unlockedTalents.includes(t.id) && t.bonus.type === 'xp_modifier' && t.bonus.stat === sourceStat);
-        if (sourceStat && relevantTalent) {
-            talentMultiplier += relevantTalent.bonus.multiplier; // Add the bonus from the talent
-        }
-
-        // Apply XP Boost based on level
-        const xpBoost = Math.floor(currentLevel / 5) * 0.01; // +1% boost every 5 levels
-        if (typeof updateQuestProgress === 'function') {
-            updateQuestProgress('xpEarned', points);
-        }
-
+        if (sourceStat && relevantTalent) talentMultiplier += relevantTalent.bonus.multiplier;
 
         // Apply "Energized" buff if active
         const energizedExpires = GM_getValue(STORAGE_KEYS.ENERGIZED_BUFF_EXPIRES, 0);
-        if (Date.now() < energizedExpires) {
-            talentMultiplier += 0.10; // Add 10% boost
-        }
+        if (Date.now() < energizedExpires) talentMultiplier += 0.10;
 
+        if (typeof updateQuestProgress === 'function') {
+            updateQuestProgress('xpEarned', points);
+        }
 
         // Grant Fixer-Coins along with XP (1 coin per 10 XP)
         const coinsEarned = Math.floor(points / 10);
         if (coinsEarned > 0) grantCoins(coinsEarned);
 
-        const finalPoints = Math.ceil(points * (1 + xpBoost) * talentMultiplier);
+        // Initial XP gain before level-up loop
+        const initialXpBoost = Math.floor(currentLevel / 5) * 0.01;
+        const finalPoints = Math.ceil(points * (1 + initialXpBoost) * talentMultiplier);
         currentXp += finalPoints;
 
         let xpForNextLevel = getXpForLevel(currentLevel);
         while (currentXp >= xpForNextLevel) {
             currentXp -= xpForNextLevel;
+            // BUGFIX: Clear rewards for each new level to prevent showing old rewards again on multi-level-ups.
             const oldLevel = currentLevel;
             currentLevel++;
+
+            // Recalculate XP boost with the new level before applying it to the remaining XP pool
+            const newXpBoost = Math.floor(currentLevel / 5) * 0.01;
+            const remainingPointsMultiplier = (1 + newXpBoost) * talentMultiplier;
+            currentXp = Math.ceil(currentXp * remainingPointsMultiplier);
 
             // --- Grant Level-Up Rewards ---
             const rewards = [];
@@ -963,18 +970,7 @@
                         if (oldAccessory) oldAccessory.style.display = 'none';
                     }
                     GM_setValue(STORAGE_KEYS.EQUIPPED_ITEM, 'master_crown');
-                    let newAccessory;
-                    // Handle special cases where item ID doesn't match element ID
-                    // In this specific case, we know the item is 'master_crown'
-                    switch ('master_crown') {
-                        case 'bookworm_kit': newAccessory = document.querySelector('.tm-mascot-book'); break;
-                        case 'stunt_bike': newAccessory = document.querySelector('.tm-mascot-bicycle'); break;
-                        case 'juggling_balls': newAccessory = document.querySelector('.tm-mascot-ball'); break;
-                        case 'cool_shades': newAccessory = document.querySelector('.tm-mascot-sunglasses'); break;
-                        case 'rainy_day_umbrella': newAccessory = document.querySelector('.tm-mascot-umbrella'); break;
-                        default: newAccessory = document.getElementById('master_crown');
-                    }
- 
+                    const newAccessory = document.getElementById('master_crown'); // BUGFIX: Correctly get the element by its ID.
                     if (newAccessory) {
                         newAccessory.style.display = 'block';
                     }
@@ -2866,9 +2862,9 @@
             }
 
             /* --- Feature: Shop --- */
-            #tm-shop-container {
+            .tm-shop-item-grid {
                 display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
                 gap: 15px;
             }
             .tm-shop-tabs { display: flex; gap: 5px; margin-bottom: 15px; border-bottom: 1px solid #ccc; }
@@ -4059,22 +4055,22 @@
                  return;
             }
 
-             const ALL_STORAGE_KEYS = [
+            const ALL_STORAGE_KEYS = [
+                // Login Page
+                LOGIN_USERS_KEY,
                 // Settings
                 ...Object.keys(DEFAULTS),
-                STORAGE_KEYS.USER_REROLL_TOKENS,
-                // Search Feature State
-                'tm_search_history', 'tm_favorite_searches',
+                ...Object.values(STORAGE_KEYS), // This covers all keys defined in STORAGE_KEYS
                 // Scratchpad State
-                'tm_user_scratchpad_text', 'tm_user_scratchpad_geometry', 'tm_user_scratchpad_is_open', 'tm_user_scratchpad_font_size', 'tm_user_scratchpad_last_edited', 'tm_user_scratchpad_is_maximized', // Old keys for cleanup
-                STORAGE_KEYS.SCRATCHPAD_NOTES, STORAGE_KEYS.SCRATCHPAD_ACTIVE_NOTE_ID, STORAGE_KEYS.SCRATCHPAD_TEMPLATES,
+                'tm_user_scratchpad_text', 'tm_user_scratchpad_geometry', 'tm_user_scratchpad_is_open', 'tm_user_scratchpad_font_size', 'tm_user_scratchpad_last_edited', 'tm_user_scratchpad_is_maximized', 'tm_scratchpad_reminder', // Old keys for cleanup
                 // Fun Features State
-                STORAGE_KEYS.USER_XP, STORAGE_KEYS.USER_LEVEL, STORAGE_KEYS.ACHIEVEMENTS, STORAGE_KEYS.PET_STATS, STORAGE_KEYS.USER_COINS, STORAGE_KEYS.PURCHASED_ITEMS, STORAGE_KEYS.EQUIPPED_ITEM, STORAGE_KEYS.EQUIPPED_THEME, STORAGE_KEYS.DAILY_QUESTS,
-                STORAGE_KEYS.USER_TITLE,
+                'tm_search_history', 'tm_favorite_searches', STORAGE_KEYS.USER_TITLE, STORAGE_KEYS.USER_REROLL_TOKENS, STORAGE_KEYS.DAILY_STATS,
             ];
             // Also reset shop/coin keys
-            ALL_STORAGE_KEYS.push(STORAGE_KEYS.USER_TALENT_POINTS, STORAGE_KEYS.UNLOCKED_TALENTS);
-            ALL_STORAGE_KEYS.push(STORAGE_KEYS.USER_NOTIFICATIONS);
+            // The line `...Object.values(STORAGE_KEYS)` already includes these, so no need to push them again.
+            // ALL_STORAGE_KEYS.push(STORAGE_KEYS.USER_TALENT_POINTS, STORAGE_KEYS.UNLOCKED_TALENTS);
+            // ALL_STORAGE_KEYS.push(STORAGE_KEYS.ENERGIZED_BUFF_EXPIRES, STORAGE_KEYS.DOUBLE_COINS_BUFF_EXPIRES);
+            // ALL_STORAGE_KEYS.push(STORAGE_KEYS.USER_NOTIFICATIONS);
             ALL_STORAGE_KEYS.forEach(key => GM_deleteValue(key));
             alert('Οι ρυθμίσεις επανήλθαν. Η σελίδα θα ανανεωθεί τώρα.');
             window.location.reload();
@@ -4269,19 +4265,19 @@
             overlay.className = 'tm-modal-overlay';
             overlay.id = 'tm-shop-modal';
             overlay.innerHTML = `
-                <div class="tm-modal-content" style="max-width: 700px;">
+                <div class="tm-modal-content" style="max-width: 800px;">
                     <div class="tm-modal-header">
                         <h2 class="tm-modal-title">🪙 Shop</h2>
                         <button class="tm-modal-close">&times;</button>
                     </div>
-                    <div id="tm-shop-content-container" style="flex-grow: 1; overflow-y: auto; padding: 10px;">
-                        <div class="tm-shop-tabs">
-                            <button class="tm-shop-tab active" data-category="themes">🎨 Themes</button>
-                            <button class="tm-shop-tab" data-category="accessories">🎩 Accessories</button>
-                            <button class="tm-shop-tab" data-category="consumables">⚡ Consumables</button>
-                            <!-- The customization tab was missing from the HTML -->
-                            <button class="tm-shop-tab" data-category="customization">🤖 Evolutions</button>
-                        </div>
+                    <div class="tm-shop-tabs">
+                        <button class="tm-shop-tab active" data-category="themes">🎨 Themes</button>
+                        <button class="tm-shop-tab" data-category="accessories">🎩 Accessories</button>
+                        <button class="tm-shop-tab" data-category="consumables">⚡ Consumables</button>
+                        <button class="tm-shop-tab" data-category="customization">🤖 Evolutions</button>
+                    </div>
+                    <div id="tm-shop-content-container" style="flex-grow: 1; overflow-y: auto; padding: 15px;">
+                        <!-- Content will be populated by JS -->
                     </div>
                 </div>
             `;
@@ -4290,67 +4286,31 @@
             overlay.querySelector('.tm-modal-close').addEventListener('click', () => overlay.remove());
             overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 
-            populateShop(); // Populate the content
-
-            // Add tab switching logic
-            const tabsContainer = overlay.querySelector('.tm-shop-tabs');
-            tabsContainer.addEventListener('click', (e) => {
+            // --- Shop Event Delegation ---
+            overlay.addEventListener('click', (e) => {
+                // Tab switching
                 if (e.target.matches('.tm-shop-tab') && !e.target.classList.contains('active')) {
                     const category = e.target.dataset.category;
                     // Update tab active state
-                    tabsContainer.querySelectorAll('.tm-shop-tab').forEach(tab => tab.classList.remove('active'));
+                    overlay.querySelectorAll('.tm-shop-tab').forEach(tab => tab.classList.remove('active'));
                     e.target.classList.add('active');
                     // Update content active state
                     overlay.querySelectorAll('.tm-shop-category-content').forEach(content => content.classList.remove('active'));
-                    overlay.querySelector(`#tm-shop-category-${category}`).classList.add('active');
-                }
-            });
-
-            // --- Shop Logic ---
-            overlay.querySelector('#tm-shop-content-container')?.addEventListener('click', (e) => {
-                if (e.target.matches('.tm-shop-item-btn')) {
-                    if (e.target.classList.contains('buy')) {
-                        handleShopPurchase(e.target); // This function is already defined and handles purchases
-                    } else if (e.target.classList.contains('equip')) {
-                        const button = e.target;
-                        const itemId = button.dataset.itemId;
-                        const itemType = button.dataset.itemType;
-
-                        // Equip logic
-                        if (itemType === 'accessory') {
-                            const equippedItem = GM_getValue(STORAGE_KEYS.EQUIPPED_ITEM, null);
-                            if (equippedItem) {
-                                let oldAccessory;
-                                // Handle special cases for unequipping
-                                switch (equippedItem) {
-                                    case 'bookworm_kit': oldAccessory = document.querySelector('.tm-mascot-book'); break;
-                                    case 'stunt_bike': oldAccessory = document.querySelector('.tm-mascot-bicycle'); break;
-                                    case 'juggling_balls': oldAccessory = document.querySelector('.tm-mascot-ball'); break;
-                                    case 'cool_shades': oldAccessory = document.querySelector('.tm-mascot-sunglasses'); break;
-                                    case 'rainy_day_umbrella': oldAccessory = document.querySelector('.tm-mascot-umbrella'); break;
-                                    default: oldAccessory = document.getElementById(equippedItem);
-                                }
-                                if (oldAccessory) oldAccessory.style.display = 'none';
-                            }
-                            GM_setValue(STORAGE_KEYS.EQUIPPED_ITEM, itemId);
-                            let newAccessory;
-                            // Handle special cases for equipping
-                            switch (itemId) {
-                                case 'bookworm_kit': newAccessory = document.querySelector('.tm-mascot-book'); break;
-                                case 'stunt_bike': newAccessory = document.querySelector('.tm-mascot-bicycle'); break;
-                                case 'juggling_balls': newAccessory = document.querySelector('.tm-mascot-ball'); break;
-                                case 'cool_shades': newAccessory = document.querySelector('.tm-mascot-sunglasses'); break;
-                                case 'rainy_day_umbrella': newAccessory = document.querySelector('.tm-mascot-umbrella'); break;
-                                default: newAccessory = document.getElementById(itemId);
-                            }
-                            if (newAccessory) newAccessory.style.display = 'block';
-                        } else if (itemType === 'theme') {
-                            applyTheme(itemId);
-                        }
-                        populateShop(); // Re-render shop to update buttons
+                    const categoryContent = overlay.querySelector(`#tm-shop-category-${category}`);
+                    if (categoryContent) {
+                        categoryContent.classList.add('active');
                     }
                 }
+
+                // Item button clicks
+                if (e.target.matches('.tm-shop-item-btn.buy')) {
+                    handleShopPurchase(e.target);
+                } else if (e.target.matches('.tm-shop-item-btn.equip')) {
+                    handleShopEquip(e.target);
+                }
             });
+
+            populateShop(); // Populate the content
         }
 
         function getSearchSettingsHTML() {
@@ -4542,6 +4502,21 @@
             `;
         }
 
+        function getDataManagementHTML() {
+            return `
+                <div class="tm-settings-section">
+                    <h3>Διαχείριση Δεδομένων</h3>
+                    <p class="tm-setting-description">Εξάγετε όλα τα δεδομένα και τις ρυθμίσεις σας σε ένα αρχείο JSON για backup, ή εισάγετε ένα backup για να επαναφέρετε την πρόοδό σας.</p>
+                    <div class="tm-data-actions">
+                        <button id="tm-export-data-btn" class="tm-data-btn export">💾 Export Data</button>
+                        <button id="tm-import-data-btn" class="tm-data-btn import">📂 Import Data</button>
+                    </div>
+                    <p class="tm-setting-description" style="margin-top: 20px; text-align: center;">Επαναφέρετε όλες τις ρυθμίσεις και την πρόοδο στις αρχικές τους τιμές. <strong>Αυτή η ενέργεια δεν αναιρείται.</strong></p>
+                    <div class="tm-data-actions"><button id="tm-reset-data-btn" class="tm-data-btn reset">⚠️ Reset All Data</button></div>
+                </div>
+            `;
+        }
+
         function handleExportData() {
             const backupData = {};
             const keysToBackup = [
@@ -4614,16 +4589,53 @@
             input.click();
         }
 
+        function handleShopEquip(button) {
+            const itemId = button.dataset.itemId;
+            const itemType = button.dataset.itemType;
+
+            // Equip logic
+            if (itemType === 'accessory') {
+                const equippedItem = GM_getValue(STORAGE_KEYS.EQUIPPED_ITEM, null);
+                if (equippedItem) {
+                    let oldAccessory;
+                    // Handle special cases for unequipping
+                    switch (equippedItem) {
+                        case 'bookworm_kit': oldAccessory = document.querySelector('.tm-mascot-book'); break;
+                        case 'stunt_bike': oldAccessory = document.querySelector('.tm-mascot-bicycle'); break;
+                        case 'juggling_balls': oldAccessory = document.querySelector('.tm-mascot-ball'); break;
+                        case 'cool_shades': oldAccessory = document.querySelector('.tm-mascot-sunglasses'); break;
+                        case 'rainy_day_umbrella': oldAccessory = document.querySelector('.tm-mascot-umbrella'); break;
+                        default: oldAccessory = document.getElementById(equippedItem);
+                    }
+                    if (oldAccessory) oldAccessory.style.display = 'none';
+                }
+                GM_setValue(STORAGE_KEYS.EQUIPPED_ITEM, itemId);
+                let newAccessory;
+                // Handle special cases for equipping
+                switch (itemId) {
+                    case 'bookworm_kit': newAccessory = document.querySelector('.tm-mascot-book'); break;
+                    case 'stunt_bike': newAccessory = document.querySelector('.tm-mascot-bicycle'); break;
+                    case 'juggling_balls': newAccessory = document.querySelector('.tm-mascot-ball'); break;
+                    case 'cool_shades': newAccessory = document.querySelector('.tm-mascot-sunglasses'); break;
+                    case 'rainy_day_umbrella': newAccessory = document.querySelector('.tm-mascot-umbrella'); break;
+                    default: newAccessory = document.getElementById(itemId);
+                }
+                if (newAccessory) newAccessory.style.display = 'block';
+            } else if (itemType === 'theme') {
+                applyTheme(itemId);
+            }
+            populateShop(); // Re-render shop to update buttons
+        }
+
         function populateShop() {
             const contentContainer = document.getElementById('tm-shop-content-container');
             if (!contentContainer) return;
 
             // Define categories
-            const categories = {
+            const categories = { // Using a Map to preserve insertion order
                 themes: [],
                 accessories: [],
                 consumables: [],
-                // Re-adding the customization category definition
                 customization: []
             };
 
@@ -4646,25 +4658,20 @@
                 { id: 'confetti_bomb', name: 'Confetti Bomb', icon: '🎉', cost: 25, type: 'consumable' }
             );
 
-            // Add mascot parts to the customization category
+            // Add mascot evolution parts to the customization category
+            // Note: These are cosmetic and don't have a direct "equip" action, they are unlocked by level.
+            // The shop can show them as unlockable milestones.
             categories.customization.push(
-                { id: 'tm-mascot-evo1', name: 'Evo-1 Chassis', icon: '🤖', cost: 1000, type: 'customization' },
-                { id: 'tm-mascot-evo2', name: 'Evo-2 Chassis', icon: '🤖', cost: 2500, type: 'customization' },
-                { id: 'tm-mascot-evo3', name: 'Evo-3 Chassis', icon: '🤖', cost: 5000, type: 'customization' },
-                { id: 'tm-mascot-evo4', name: 'Evo-4 Chassis', icon: '🤖', cost: 15000, type: 'customization' }
-            );
-
-            // Re-adding the population of the customization category
-            categories.customization.push(
-                { id: 'tm-mascot-evo1', name: 'Evo-1 Chassis', icon: '🤖', cost: 1000, type: 'customization' },
-                { id: 'tm-mascot-evo2', name: 'Evo-2 Chassis', icon: '🤖', cost: 2500, type: 'customization' },
-                { id: 'tm-mascot-evo3', name: 'Evo-3 Chassis', icon: '🤖', cost: 5000, type: 'customization' },
-                { id: 'tm-mascot-evo4', name: 'Evo-4 Chassis', icon: '🤖', cost: 15000, type: 'customization' }
+                { id: 'evo1_chassis', name: 'Evo-1 Chassis', icon: '🤖', cost: 0, type: 'customization', description: 'Unlocked at Level 10' },
+                { id: 'evo2_chassis', name: 'Evo-2 Chassis', icon: '🤖', cost: 0, type: 'customization', description: 'Unlocked at Level 25' },
+                { id: 'evo3_chassis', name: 'Evo-3 Chassis', icon: '🤖', cost: 0, type: 'customization', description: 'Unlocked at Level 50' },
+                { id: 'evo4_chassis', name: 'Evo-4 Chassis', icon: '🤖', cost: 0, type: 'customization', description: 'Unlocked at Level 100' }
             );
 
             const purchasedItems = JSON.parse(GM_getValue(STORAGE_KEYS.PURCHASED_ITEMS, '[]'));
             const equippedItem = GM_getValue(STORAGE_KEYS.EQUIPPED_ITEM, null);
             let currentCoins = GM_getValue(STORAGE_KEYS.USER_COINS, 0);
+            const currentLevel = GM_getValue(STORAGE_KEYS.USER_LEVEL, 1);
 
             contentContainer.innerHTML = ''; // Clear previous items
 
@@ -4676,23 +4683,36 @@
                 if (category === 'themes') categoryContent.classList.add('active'); // Make first tab active
 
                 const shopGrid = document.createElement('div');
-                shopGrid.className = 'tm-shop-grid'; // Use a class instead of a duplicate ID
+                shopGrid.className = 'tm-shop-item-grid';
 
                 categories[category].forEach(item => {
                     const isOwned = purchasedItems.includes(item.id);
                     const isEquipped = (item.type === 'accessory' && equippedItem === item.id) || (item.type === 'theme' && config.equippedTheme === item.id);
+                    const isCustomization = item.type === 'customization';
 
                     const itemDiv = document.createElement('div');
                     itemDiv.className = `tm-shop-item ${isOwned || (config.debugEnabled && item.type !== 'consumable') ? 'owned' : ''}`;
+
+                    let costHTML = '';
+                    if (isCustomization) {
+                        costHTML = `<div class="tm-shop-item-cost">${item.description}</div>`;
+                    } else {
+                        costHTML = `<div class="tm-shop-item-cost">${(isOwned && item.type !== 'consumable') ? 'Αγορασμένο' : (config.debugEnabled ? '🪙 0 (Free)' : `🪙 ${item.cost}`)}</div>`;
+                    }
+
                     itemDiv.innerHTML = `
                         <div class="tm-shop-item-icon">${item.icon}</div>
                         <div class="tm-shop-item-name">${item.name}</div>
-                        <div class="tm-shop-item-cost">${(isOwned && item.type !== 'consumable') ? 'Αγορασμένο' : (config.debugEnabled ? '🪙 0 (Free)' : `🪙 ${item.cost}`)}</div>
+                        ${costHTML}
                         <button class="tm-shop-item-btn" data-item-id="${item.id}" data-item-cost="${item.cost}" data-item-type="${item.type}"></button>
                     `;
 
                     const button = itemDiv.querySelector('.tm-shop-item-btn');
-                    if (isOwned || (config.debugEnabled && item.type !== 'consumable')) {
+                    if (isCustomization) {
+                        button.textContent = 'Unlocked by Level';
+                        button.disabled = true;
+                        button.className += ' equipped'; // Use 'equipped' style for disabled look
+                    } else if (isOwned || (config.debugEnabled && item.type !== 'consumable')) {
                         button.textContent = isEquipped ? 'Εξοπλισμένο' : 'Εξόπλισε';
                         button.className += isEquipped ? ' equipped' : ' equip';
                         if (isEquipped) button.disabled = true;
@@ -4707,6 +4727,7 @@
                 contentContainer.appendChild(categoryContent);
             }
         }
+
 
         function handleShopPurchase(button) {
             const itemId = button.dataset.itemId;
@@ -4785,6 +4806,7 @@
                             <section id="sec-autorefresh">${getAutoRefreshSettingsHTML()}</section>
                             <section id="sec-scratchpad">${getScratchpadSettingsHTML()}</section>
                             <section id="sec-gamification">${getLevelUpSettingsHTML()}${getMascotSettingsHTML()}${getTalentsHTML()}</section>
+                            <section id="sec-data">${getDataManagementHTML()}</section>
                             <section id="sec-debug">${getDebugSettingsHTML()}</section>
                         </main>
                     </div>
@@ -4799,9 +4821,7 @@
             // Event Listeners
             overlay.querySelector('.tm-modal-close').addEventListener('click', () => overlay.remove());
             overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-            overlay.querySelector('#tm-settings-reset')?.addEventListener('click', resetSettings);
-            overlay.querySelector('#tm-export-data-btn')?.addEventListener('click', handleExportData);
-            overlay.querySelector('#tm-import-data-btn')?.addEventListener('click', handleImportData);
+            overlay.querySelector('#tm-settings-save').addEventListener('click', saveSettings);
 
             // Sidebar nav -> tabs
             try {
@@ -4834,6 +4854,12 @@
             if (settingsContent) {
                 initDebugControls(); // Initialize debug button listeners
                 settingsContent.addEventListener('click', handleTalentUnlock);
+                // Add listeners for data management buttons via delegation
+                settingsContent.addEventListener('click', (e) => {
+                    if (e.target.matches('#tm-export-data-btn')) handleExportData();
+                    if (e.target.matches('#tm-import-data-btn')) handleImportData();
+                    if (e.target.matches('#tm-reset-data-btn')) resetSettings(); // Changed from tm-settings-reset
+                });
             }
 
             // --- Populate Checkboxes ---
@@ -5469,60 +5495,6 @@
             });
         }
 
-        function handleTabClick(e) {
-            const tab = e.target.closest('.tm-scratchpad-tab');
-            if (!tab) return;
-            if (e.type === 'dblclick') {
-                const titleSpan = e.target.closest('.tm-scratchpad-tab-title');
-                if (titleSpan) {
-                    const noteId = titleSpan.parentElement.dataset.noteId;
-                    const newTitle = prompt('Enter new note title:', titleSpan.textContent);
-                    if (newTitle && newTitle.trim()) {
-                        let notes = getNotes();
-                        const note = notes.find(n => n.id === noteId);
-                        if (note) {
-                            note.title = newTitle.trim();
-                            saveNotes(notes);
-                            renderTabs();
-                        }
-                    }
-                }
-                return; // Stop further processing for dblclick
-            }
-            const noteId = tab.dataset.noteId;
-            if (e.target.classList.contains('tm-scratchpad-tab-pin')) {
-                // Pin/Unpin note
-                let notes = getNotes();
-                const note = notes.find(n => n.id === noteId);
-                if (note) {
-                    note.isPinned = !note.isPinned;
-                    saveNotes(notes);
-                    renderTabs();
-                }
-
-            } else if (e.target.classList.contains('tm-scratchpad-tab-close')) {
-                // Close tab
-                if (getNotes().length <= 1) {
-                    showPositiveMessage('Cannot close the last note.');
-                    return;
-                }
-                if (confirm(`Are you sure you want to delete "${tab.querySelector('.tm-scratchpad-tab-title').textContent}"?`)) {
-                    let notes = getNotes().filter(n => n.id !== noteId);
-                    saveNotes(notes);
-                    if (getActiveNoteId() === noteId) {
-                        GM_setValue(STORAGE_KEYS.SCRATCHPAD_ACTIVE_NOTE_ID, notes[0].id);
-                    }
-                    renderTabs();
-                    loadActiveNote();
-                }
-            } else {
-                // Switch tab
-                GM_setValue(STORAGE_KEYS.SCRATCHPAD_ACTIVE_NOTE_ID, noteId);
-                renderTabs();
-                loadActiveNote();
-            }
-        }
-
         newTabBtn.addEventListener('click', () => {
             let notes = getNotes();
             const newNote = { id: `note_${Date.now()}`, title: `Note ${notes.length + 1}`, content: '', reminder: null, isPinned: false, lastEdited: null, fontSize: 13 };
@@ -5582,57 +5554,39 @@
                 return (offset < 0 && offset > closest.offset) ? { offset: offset, element: child } : closest;
             }, { offset: Number.NEGATIVE_INFINITY }).element;
         }
-        // --- New, more robust click handling to differentiate single vs. double clicks ---
+        // --- Robust click handling to differentiate single vs. double clicks ---
         let clickTimer = null;
         tabsContainer.addEventListener('click', (e) => {
             const tab = e.target.closest('.tm-scratchpad-tab');
-            if (!tab) return;
+            if (!tab) return; // Exit if the click was not on a tab
 
-            // If a timer is already running, it means this is the second click (a double-click)
+            // Single-click action (switch/pin/close)
+            const singleClickAction = () => {
+                const noteId = tab.dataset.noteId;
+                if (e.target.classList.contains('tm-scratchpad-tab-pin')) {
+                    let notes = getNotes();
+                    const note = notes.find(n => n.id === noteId);
+                    if (note) { note.isPinned = !note.isPinned; saveNotes(notes); renderTabs(); }
+                } else if (e.target.classList.contains('tm-scratchpad-tab-close')) {
+                    if (confirm(`Are you sure you want to delete "${tab.querySelector('.tm-scratchpad-tab-title').textContent}"?`)) {
+                        let notes = getNotes().filter(n => n.id !== noteId);
+                        saveNotes(notes);
+                        if (getActiveNoteId() === noteId) { GM_setValue(STORAGE_KEYS.SCRATCHPAD_ACTIVE_NOTE_ID, notes[0].id); }
+                        renderTabs(); loadActiveNote();
+                    }
+                } else { // Switch tab
+                    GM_setValue(STORAGE_KEYS.SCRATCHPAD_ACTIVE_NOTE_ID, noteId);
+                    renderTabs(); loadActiveNote();
+                }
+            };
+
+            // If there's a pending single-click timer, it means this is a double-click
             if (clickTimer) {
                 clearTimeout(clickTimer);
                 clickTimer = null;
-
-                // --- Double-click logic ---
-                const titleSpan = e.target.closest('.tm-scratchpad-tab-title');
-                if (titleSpan) {
-                    const noteId = titleSpan.parentElement.dataset.noteId;
-                    const currentNote = getNotes().find(n => n.id === noteId);
-                    const newTitle = prompt('Enter new note title:', currentNote.title);
-                    if (newTitle && newTitle.trim()) {
-                        let notes = getNotes();
-                        const noteToUpdate = notes.find(n => n.id === noteId);
-                        if (noteToUpdate) {
-                            noteToUpdate.title = newTitle.trim();
-                            saveNotes(notes);
-                            renderTabs();
-                        }
-                    }
-                }
-            } else {
-                // This is the first click. Start a timer.
-                clickTimer = setTimeout(() => {
-                    clickTimer = null; // Reset timer
-
-                    // --- Single-click logic (runs after 250ms if no second click) ---
-                    const noteId = tab.dataset.noteId;
-                    if (e.target.classList.contains('tm-scratchpad-tab-pin')) {
-                        let notes = getNotes();
-                        const note = notes.find(n => n.id === noteId);
-                        if (note) { note.isPinned = !note.isPinned; saveNotes(notes); renderTabs(); }
-                    } else if (e.target.classList.contains('tm-scratchpad-tab-close')) {
-                        if (getNotes().length <= 1) { showPositiveMessage('Cannot close the last note.'); return; }
-                        if (confirm(`Are you sure you want to delete "${tab.querySelector('.tm-scratchpad-tab-title').textContent}"?`)) {
-                            let notes = getNotes().filter(n => n.id !== noteId);
-                            saveNotes(notes);
-                            if (getActiveNoteId() === noteId) { GM_setValue(STORAGE_KEYS.SCRATCHPAD_ACTIVE_NOTE_ID, notes[0].id); }
-                            renderTabs(); loadActiveNote();
-                        }
-                    } else { // Switch tab
-                        GM_setValue(STORAGE_KEYS.SCRATCHPAD_ACTIVE_NOTE_ID, noteId);
-                        renderTabs(); loadActiveNote();
-                    }
-                }, 250); // 250ms delay to wait for a potential second click
+                handleTabClick(e); // This will now correctly trigger the rename logic from the dblclick handler
+            } else { // Otherwise, it's a single click, so set a timer
+                clickTimer = setTimeout(singleClickAction, 250);
             }
         });
 
@@ -6061,37 +6015,40 @@
         overlay.id = 'tm-titles-modal';
 
         // Get the base SVG for the mascot to display its evolutions
-        const mascotSVGTemplate = `
-            <svg class="tm-mascot-robot" viewBox="0 0 100 100" style="overflow: visible; width: 60px; height: 60px;">
-                <g class="tm-mascot-flipper" transform-origin="50 50">
-                    <g id="tm-mascot-base" style="display: none;">
-                        <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#333" stroke-width="2"/><circle cx="50" cy="5" r="3" fill="#ffc107"/></g>
-                        <g class="tm-mascot-main-body"><rect x="25" y="15" width="50" height="40" rx="10" fill="#e0e0e0" stroke="#333" stroke-width="3"/><g class="tm-mascot-eye-open"><circle cx="40" cy="35" r="5" fill="white"/><circle cx="40" cy="35" r="2" fill="black"/><circle cx="60" cy="35" r="5" fill="white"/><circle cx="60" cy="35" r="2" fill="black"/></g><path class="tm-mascot-mouth-happy" d="M 40 45 Q 50 55 60 45" stroke="black" stroke-width="2" fill="none"/><rect x="20" y="55" width="60" height="30" rx="5" fill="#d0d0d0" stroke="#333" stroke-width="3"/></g>
-                        <g class="tm-mascot-thrusters"><rect class="tm-mascot-thruster-left" x="30" y="85" width="15" height="10" fill="#6c757d"/><rect class="tm-mascot-thruster-right" x="55" y="85" width="15" height="10" fill="#6c757d"/></g>
+        function getMascotPreviewForLevel(level) {
+            let visibleEvo = 'base';
+            if (level >= 100) visibleEvo = 'evo4';
+            else if (level >= 50) visibleEvo = 'evo3';
+            else if (level >= 25) visibleEvo = 'evo2';
+            else if (level >= 10) visibleEvo = 'evo1';
+
+            return `
+                <svg class="tm-mascot-robot" viewBox="0 0 100 100" style="overflow: visible; width: 60px; height: 60px;">
+                    <g class="tm-mascot-flipper" transform-origin="50 50">
+                        <g id="tm-mascot-base-preview" style="display: ${visibleEvo === 'base' ? 'block' : 'none'};">
+                            <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#333" stroke-width="2"/><circle cx="50" cy="5" r="3" fill="#ffc107"/></g>
+                            <g class="tm-mascot-main-body"><rect x="25" y="15" width="50" height="40" rx="10" fill="#e0e0e0" stroke="#333" stroke-width="3"/><g class="tm-mascot-eye-open"><circle cx="40" cy="35" r="5" fill="white"/><circle cx="40" cy="35" r="2" fill="black"/><circle cx="60" cy="35" r="5" fill="white"/><circle cx="60" cy="35" r="2" fill="black"/></g><path class="tm-mascot-mouth-happy" d="M 40 45 Q 50 55 60 45" stroke="black" stroke-width="2" fill="none"/><rect x="20" y="55" width="60" height="30" rx="5" fill="#d0d0d0" stroke="#333" stroke-width="3"/></g>
+                        </g>
+                        <g id="tm-mascot-evo1-preview" style="display: ${visibleEvo === 'evo1' ? 'block' : 'none'};">
+                            <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#555" stroke-width="2"/><circle cx="50" cy="5" r="3" fill="#17a2b8"/></g>
+                            <g class="tm-mascot-main-body"><rect x="25" y="15" width="50" height="40" rx="5" fill="#d4e6f1" stroke="#34495e" stroke-width="3"/><g class="tm-mascot-eye-open"><rect x="35" y="32" width="10" height="6" fill="white" rx="1"/><rect x="55" y="32" width="10" height="6" fill="white" rx="1"/></g><path class="tm-mascot-mouth-happy" d="M 40 45 Q 50 50 60 45" stroke="black" stroke-width="2" fill="none"/><rect x="20" y="55" width="60" height="30" rx="3" fill="#b9d7ea" stroke="#34495e" stroke-width="3"/></g>
+                        </g>
+                        <g id="tm-mascot-evo2-preview" style="display: ${visibleEvo === 'evo2' ? 'block' : 'none'};">
+                            <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#333" stroke-width="2"/><circle cx="50" cy="5" r="3" fill="#ffc107" stroke="#fff" stroke-width="0.5"/></g>
+                            <g class="tm-mascot-main-body"><rect x="25" y="15" width="50" height="40" rx="8" fill="#f1f1f1" stroke="#ffc107" stroke-width="3"/><g class="tm-mascot-eye-open"><path d="M 35 32 L 45 32 L 40 40 Z" fill="#17a2b8"/><path d="M 55 32 L 65 32 L 60 40 Z" fill="#17a2b8"/></g><path class="tm-mascot-mouth-happy" d="M 40 48 L 60 48" stroke="black" stroke-width="2" fill="none"/><rect x="20" y="55" width="60" height="30" rx="5" fill="#e0e0e0" stroke="#ffc107" stroke-width="3"/></g>
+                        </g>
+                        <g id="tm-mascot-evo3-preview" style="display: ${visibleEvo === 'evo3' ? 'block' : 'none'};">
+                            <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#a335ee" stroke-width="2.5"/><circle cx="50" cy="5" r="3.5" fill="#f0f" stroke="#fff" stroke-width="1"/></g>
+                            <g class="tm-mascot-main-body"><rect x="25" y="15" width="50" height="40" rx="12" fill="#2c2c2c" stroke="#a335ee" stroke-width="3"/><g class="tm-mascot-eye-open"><path d="M 35 30 L 45 40 M 45 30 L 35 40" stroke="#f0f" stroke-width="2"/><path d="M 55 30 L 65 40 M 65 30 L 55 40" stroke="#f0f" stroke-width="2"/></g><path class="tm-mascot-mouth-happy" d="M 40 48 L 60 48" stroke="#f0f" stroke-width="2" fill="none"/><rect x="20" y="55" width="60" height="30" rx="8" fill="#3c3c3c" stroke="#a335ee" stroke-width="3"/></g>
+                        </g>
+                        <g id="tm-mascot-evo4-preview" style="display: ${visibleEvo === 'evo4' ? 'block' : 'none'};">
+                            <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#ff8000" stroke-width="3"/><circle cx="50" cy="5" r="4" fill="#ffc107" stroke="#fff" stroke-width="1"><animate attributeName="r" values="4;5;4" dur="1.5s" repeatCount="indefinite"/></circle></g>
+                            <g class="tm-mascot-main-body"><rect x="25" y="15" width="50" height="40" rx="15" fill="#fff" stroke="#ff8000" stroke-width="4"/><g class="tm-mascot-eye-open"><circle cx="40" cy="35" r="6" fill="#ff8000"/><circle cx="60" cy="35" r="6" fill="#ff8000"/></g><path class="tm-mascot-mouth-happy" d="M 40 45 Q 50 55 60 45" stroke="#ff8000" stroke-width="3" fill="none"/><rect x="20" y="55" width="60" height="30" rx="10" fill="#eee" stroke="#ff8000" stroke-width="4"/></g>
+                        </g>
                     </g>
-                    <g id="tm-mascot-evo1" style="display: none;">
-                        <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#555" stroke-width="2"/><circle cx="50" cy="5" r="3" fill="#17a2b8"/></g>
-                        <g class="tm-mascot-main-body"><rect x="25" y="15" width="50" height="40" rx="5" fill="#d4e6f1" stroke="#34495e" stroke-width="3"/><g class="tm-mascot-eye-open"><rect x="35" y="32" width="10" height="6" fill="white" rx="1"/><rect x="55" y="32" width="10" height="6" fill="white" rx="1"/></g><path class="tm-mascot-mouth-happy" d="M 40 45 Q 50 50 60 45" stroke="black" stroke-width="2" fill="none"/><rect x="20" y="55" width="60" height="30" rx="3" fill="#b9d7ea" stroke="#34495e" stroke-width="3"/></g>
-                        <g class="tm-mascot-thrusters"><rect class="tm-mascot-thruster-left" x="30" y="85" width="15" height="10" fill="#5d6d7e" rx="2"/><rect class="tm-mascot-thruster-right" x="55" y="85" width="15" height="10" fill="#5d6d7e" rx="2"/></g>
-                    </g>
-                    <g id="tm-mascot-evo2" style="display: none;">
-                        <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#333" stroke-width="2"/><circle cx="50" cy="5" r="3" fill="#ffc107" stroke="#fff" stroke-width="0.5"/></g>
-                        <g class="tm-mascot-main-body"><rect x="25" y="15" width="50" height="40" rx="8" fill="#f1f1f1" stroke="#ffc107" stroke-width="3"/><g class="tm-mascot-eye-open"><path d="M 35 32 L 45 32 L 40 40 Z" fill="#17a2b8"/><path d="M 55 32 L 65 32 L 60 40 Z" fill="#17a2b8"/></g><path class="tm-mascot-mouth-happy" d="M 40 48 L 60 48" stroke="black" stroke-width="2" fill="none"/><rect x="20" y="55" width="60" height="30" rx="5" fill="#e0e0e0" stroke="#ffc107" stroke-width="3"/></g>
-                        <g class="tm-mascot-thrusters"><rect class="tm-mascot-thruster-left" x="30" y="85" width="15" height="12" fill="#333" rx="3"/><rect class="tm-mascot-thruster-right" x="55" y="85" width="15" height="12" fill="#333" rx="3"/></g>
-                    </g>
-                    <g id="tm-mascot-evo3" style="display: none;">
-                        <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#a335ee" stroke-width="2.5"/><circle cx="50" cy="5" r="3.5" fill="#f0f" stroke="#fff" stroke-width="1"/></g>
-                        <g class="tm-mascot-main-body"><rect x="25" y="15" width="50" height="40" rx="12" fill="#2c2c2c" stroke="#a335ee" stroke-width="3"/><g class="tm-mascot-eye-open"><path d="M 35 30 L 45 40 M 45 30 L 35 40" stroke="#f0f" stroke-width="2"/><path d="M 55 30 L 65 40 M 65 30 L 55 40" stroke="#f0f" stroke-width="2"/></g><path class="tm-mascot-mouth-happy" d="M 40 48 L 60 48" stroke="#f0f" stroke-width="2" fill="none"/><rect x="20" y="55" width="60" height="30" rx="8" fill="#3c3c3c" stroke="#a335ee" stroke-width="3"/></g>
-                        <g class="tm-mascot-thrusters"><rect class="tm-mascot-thruster-left" x="30" y="85" width="15" height="15" fill="#a335ee" rx="4"/><rect class="tm-mascot-thruster-right" x="55" y="85" width="15" height="15" fill="#a335ee" rx="4"/></g>
-                    </g>
-                    <g id="tm-mascot-evo4" style="display: none;">
-                        <g class="tm-mascot-antenna"><line x1="50" y1="15" x2="50" y2="5" stroke="#ff8000" stroke-width="3"/><circle cx="50" cy="5" r="4" fill="#ffc107" stroke="#fff" stroke-width="1"><animate attributeName="r" values="4;5;4" dur="1.5s" repeatCount="indefinite"/></circle></g>
-                        <g class="tm-mascot-main-body"><rect x="25" y="15" width="50" height="40" rx="15" fill="#fff" stroke="#ff8000" stroke-width="4"/><g class="tm-mascot-eye-open"><circle cx="40" cy="35" r="6" fill="#ff8000"/><circle cx="60" cy="35" r="6" fill="#ff8000"/></g><path class="tm-mascot-mouth-happy" d="M 40 45 Q 50 55 60 45" stroke="#ff8000" stroke-width="3" fill="none"/><rect x="20" y="55" width="60" height="30" rx="10" fill="#eee" stroke="#ff8000" stroke-width="4"/></g>
-                        <g class="tm-mascot-thrusters"><rect class="tm-mascot-thruster-left" x="30" y="85" width="15" height="15" fill="#ff8000" rx="5"/><rect class="tm-mascot-thruster-right" x="55" y="85" width="15" height="15" fill="#ff8000" rx="5"/></g>
-                    </g>
-                </g>
-            </svg>
-        `;
+                </svg>
+            `;
+        }
 
         const titlesHTML = RANKS.map(rank => {
             const isUnlocked = currentLevel >= rank.level;
@@ -6099,16 +6056,15 @@
             let mascotDisplayHTML = '';
 
             if (config.interactiveMascotEnabled) {
-                if (rank.level === 1) mascotDisplayHTML = mascotSVGTemplate.replace('id="tm-mascot-base" style="display: none;"', 'id="tm-mascot-base" style="display: block;"');
-                if (rank.level === 10) mascotDisplayHTML = mascotSVGTemplate.replace('id="tm-mascot-evo1" style="display: none;"', 'id="tm-mascot-evo1" style="display: block;"');
-                if (rank.level === 25) mascotDisplayHTML = mascotSVGTemplate.replace('id="tm-mascot-evo2" style="display: none;"', 'id="tm-mascot-evo2" style="display: block;"');
-                if (rank.level === 50) mascotDisplayHTML = mascotSVGTemplate.replace('id="tm-mascot-evo3" style="display: none;"', 'id="tm-mascot-evo3" style="display: block;"');
-                if (rank.level === 100) mascotDisplayHTML = mascotSVGTemplate.replace('id="tm-mascot-evo4" style="display: none;"', 'id="tm-mascot-evo4" style="display: block;"');
+                const evolutionLevels = [1, 10, 25, 50, 100];
+                if (evolutionLevels.includes(rank.level)) {
+                    mascotDisplayHTML = getMascotPreviewForLevel(rank.level);
+                }
             }
 
             return `
                 <div class="tm-title-item ${isUnlocked ? 'unlocked' : 'locked'}">
-                    ${mascotDisplayHTML ? `<div class="tm-title-mascot-preview">${mascotDisplayHTML}</div>` : ''}
+                    ${mascotDisplayHTML ? `<div class="tm-title-mascot-preview">${mascotDisplayHTML}</div>` : '<div class="tm-title-mascot-preview" style="width: 60px;"></div>'}
                     <div class="tm-title-level">Lv. ${rank.level}</div>
                     <div class="tm-title-name" style="color: ${rank.color}; ${glowStyle}">${rank.title}</div>
                 </div>
@@ -6558,15 +6514,12 @@
                 cell.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    let rawSearchTerm = cell.innerText.trim();
+                    let searchTerm = cell.innerText.trim().split('\n')[0];
                     // If it's a phone number, clean it by removing all non-digit characters.
                     // This handles formats like '69X XXX XXXX' by turning them into '69XXXXXXXX'.
                     if (isPhoneNumber) {
-                        rawSearchTerm = rawSearchTerm.replace(/\D/g, '');
+                        searchTerm = searchTerm.replace(/\D/g, '');
                     }
-                    // If the cell contains multiple lines (e.g., multiple phone numbers),
-                    // only use the first line for the search to ensure a clean query.
-                    const searchTerm = cell.innerText.trim().split('\n')[0];
                     showCustomerHistoryModal(searchTerm);
                 });
             }
@@ -6853,13 +6806,13 @@
 
         async function moveToNewPosition() {
             // Triple-check: Only move if the mascot is truly in an idle/roaming state.
-            // This prevents a new move from starting if a temporary state (like 'happy') was just triggered.
-            const currentMascotState = mascotContainer.className;
-            if (!isRoaming || !currentMascotState.includes('mascot-idle')) {
-                return; // Exit if not in a valid roaming state.
+            // This prevents a new move from starting if a temporary state (like 'happy') was just triggered and roaming was stopped.
+            if (!isRoaming) {
+                return; // Stop if roaming has been cancelled
             }
 
-            if (!isRoaming) return; // Stop if roaming has been cancelled
+            const currentMascotState = mascotContainer.className;
+            if (!(currentMascotState.includes('mascot-idle') || currentMascotState.includes('mascot-powersave'))) return; // Exit if not in a valid roaming state.
 
             const body = mascotContainer.querySelector('.tm-mascot-main-body');
             const flipper = mascotContainer.querySelector('.tm-mascot-flipper');
@@ -7024,7 +6977,7 @@
         if (!mascotContainer) return;
 
         // Clear any previous temporary state timeout
-        if (mascotStateTimeout) {
+        if (mascotStateTimeout) { // BUGFIX: Only clear if a timeout is actually set.
             clearTimeout(mascotStateTimeout);
             mascotStateTimeout = null;
         }
@@ -7047,13 +7000,13 @@
     }
 
     function updatePetStateByStats(isExitingTempState = false) {
-        // If a temporary state is active, don't override it with a base state
         const mascotContainer = document.getElementById('tm-mascot-container');
         // This function is called periodically AND at the end of temporary states (like 'dodging').
         // We only want to interrupt a temporary state if we are explicitly being told to do so by its timeout finishing. Also, don't interrupt the energized state.
         if (!isExitingTempState && mascotContainer && ['mascot-happy', 'mascot-eating', 'mascot-dodging', 'mascot-reading', 'mascot-biking', 'mascot-juggling', 'mascot-thinking', 'mascot-glitching', 'mascot-eureka', 'mascot-sunny', 'mascot-rainy', 'mascot-energized'].some(c => mascotContainer.classList.contains(c))) {
-            return; // Don't override a temporary state unless its timer has expired.
+            return;
         }
+        // If a temporary state is active, don't override it with a base state
 
         if (petStats.hunger < 30 || petStats.happiness < 30) {
             setMascotState('sad');
